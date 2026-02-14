@@ -1,0 +1,257 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* ===== Color Tokens ===== */
+    /* Primary: Medical Blue - Trust, professionalism, healthcare */
+    --primary: 200 95% 42%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 200 100% 65%;
+    --primary-muted: 200 80% 85%;
+    
+    /* Secondary: Teal - Healing, balance, medical */
+    --secondary: 180 60% 45%;
+    --secondary-foreground: 0 0% 100%;
+    --secondary-muted: 180 40% 85%;
+    
+    /* Accent: Vibrant Teal - Interactive elements */
+    --accent: 165 70% 55%;
+    --accent-foreground: 0 0% 100%;
+    --accent-hover: 165 70% 45%;
+    
+    /* Neutrals: Clean, professional grays */
+    --muted: 210 20% 96%;
+    --muted-foreground: 210 15% 45%;
+    --background: 0 0% 100%;
+    --foreground: 210 15% 15%;
+    
+    /* UI Elements */
+    --card: 0 0% 100%;
+    --card-foreground: 210 15% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 15% 15%;
+    --border: 210 20% 88%;
+    --input: 210 20% 88%;
+    --ring: 200 95% 42%;
+    
+    /* Status Colors */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --info: 200 95% 42%;
+    --info-foreground: 0 0% 100%;
+    
+    /* ===== Spacing Scale ===== */
+    --spacing-xs: 0.25rem;
+    --spacing-sm: 0.5rem;
+    --spacing-md: 1rem;
+    --spacing-lg: 1.5rem;
+    --spacing-xl: 2rem;
+    --spacing-2xl: 3rem;
+    
+    /* ===== Border Radius ===== */
+    --radius-sm: 0.25rem;
+    --radius: 0.5rem;
+    --radius-md: 0.75rem;
+    --radius-lg: 1rem;
+    --radius-xl: 1.5rem;
+    --radius-full: 9999px;
+    
+    /* ===== Shadows (Elevated Design) ===== */
+    --shadow-xs: 0 1px 2px hsl(210 20% 70% / 0.08);
+    --shadow-sm: 0 2px 4px hsl(210 20% 70% / 0.1);
+    --shadow-md: 0 4px 8px hsl(210 20% 70% / 0.12);
+    --shadow-lg: 0 8px 16px hsl(210 20% 70% / 0.14);
+    --shadow-xl: 0 12px 24px hsl(210 20% 70% / 0.16);
+    --shadow-2xl: 0 20px 40px hsl(210 20% 70% / 0.2);
+    --shadow-elegant: 0 10px 30px -10px hsl(200 95% 42% / 0.2);
+    --shadow-glow: 0 0 40px hsl(200 100% 65% / 0.3);
+    --shadow-card: 0 2px 8px hsl(210 20% 70% / 0.08);
+    
+    /* ===== Gradients ===== */
+    --gradient-primary: linear-gradient(135deg, hsl(200 95% 42%) 0%, hsl(180 60% 45%) 100%);
+    --gradient-secondary: linear-gradient(135deg, hsl(180 60% 45%) 0%, hsl(165 70% 55%) 100%);
+    --gradient-hero: linear-gradient(180deg, hsl(200 95% 97%) 0%, hsl(0 0% 100%) 100%);
+    --gradient-success: linear-gradient(135deg, hsl(142 76% 36%) 0%, hsl(142 76% 46%) 100%);
+    --gradient-warning: linear-gradient(135deg, hsl(38 92% 50%) 0%, hsl(38 92% 60%) 100%);
+    --gradient-danger: linear-gradient(135deg, hsl(0 84% 60%) 0%, hsl(0 84% 70%) 100%);
+    --gradient-glass: linear-gradient(135deg, hsl(0 0% 100% / 0.8) 0%, hsl(0 0% 100% / 0.4) 100%);
+    
+    /* ===== Animations & Transitions ===== */
+    --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-slow: 350ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: 500ms cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  }
+
+  .dark {
+    /* ===== Dark Mode Colors ===== */
+    --primary: 200 95% 50%;
+    --primary-foreground: 210 15% 10%;
+    --primary-glow: 200 100% 70%;
+    --primary-muted: 200 80% 25%;
+    
+    --secondary: 180 50% 40%;
+    --secondary-foreground: 0 0% 100%;
+    --secondary-muted: 180 40% 25%;
+    
+    --accent: 165 60% 50%;
+    --accent-foreground: 0 0% 100%;
+    --accent-hover: 165 60% 40%;
+    
+    --muted: 210 20% 15%;
+    --muted-foreground: 210 15% 65%;
+    --background: 210 20% 8%;
+    --foreground: 0 0% 95%;
+    
+    --card: 210 20% 12%;
+    --card-foreground: 0 0% 95%;
+    --popover: 210 20% 12%;
+    --popover-foreground: 0 0% 95%;
+    --border: 210 20% 25%;
+    --input: 210 20% 25%;
+    --ring: 200 95% 50%;
+    
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 142 76% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 60%;
+    --warning-foreground: 210 15% 10%;
+    --info: 200 95% 50%;
+    --info-foreground: 210 15% 10%;
+    
+    --shadow-xs: 0 1px 2px hsl(0 0% 0% / 0.2);
+    --shadow-sm: 0 2px 4px hsl(0 0% 0% / 0.25);
+    --shadow-md: 0 4px 8px hsl(0 0% 0% / 0.3);
+    --shadow-lg: 0 8px 16px hsl(0 0% 0% / 0.35);
+    --shadow-xl: 0 12px 24px hsl(0 0% 0% / 0.4);
+    --shadow-2xl: 0 20px 40px hsl(0 0% 0% / 0.5);
+    --shadow-elegant: 0 10px 30px -10px hsl(200 95% 50% / 0.3);
+    --shadow-glow: 0 0 40px hsl(200 100% 70% / 0.4);
+    --shadow-card: 0 2px 8px hsl(0 0% 0% / 0.3);
+    
+    --gradient-primary: linear-gradient(135deg, hsl(200 95% 50%) 0%, hsl(180 50% 40%) 100%);
+    --gradient-secondary: linear-gradient(135deg, hsl(180 50% 40%) 0%, hsl(165 60% 50%) 100%);
+    --gradient-hero: linear-gradient(180deg, hsl(210 20% 12%) 0%, hsl(210 20% 8%) 100%);
+    --gradient-success: linear-gradient(135deg, hsl(142 76% 45%) 0%, hsl(142 76% 55%) 100%);
+    --gradient-warning: linear-gradient(135deg, hsl(38 92% 60%) 0%, hsl(38 92% 70%) 100%);
+    --gradient-danger: linear-gradient(135deg, hsl(0 84% 60%) 0%, hsl(0 84% 70%) 100%);
+    --gradient-glass: linear-gradient(135deg, hsl(210 20% 12% / 0.8) 0%, hsl(210 20% 12% / 0.4) 100%);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  /* ===== Typography Scale ===== */
+  h1 {
+    @apply text-4xl font-bold tracking-tight;
+    line-height: 1.2;
+  }
+  
+  h2 {
+    @apply text-3xl font-semibold tracking-tight;
+    line-height: 1.3;
+  }
+  
+  h3 {
+    @apply text-2xl font-semibold tracking-tight;
+    line-height: 1.4;
+  }
+  
+  h4 {
+    @apply text-xl font-semibold;
+    line-height: 1.5;
+  }
+  
+  /* ===== Focus States ===== */
+  *:focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+}
+
+/* ===== Utility Classes ===== */
+@layer components {
+  /* Glass morphism effects */
+  .glass {
+    background: var(--gradient-glass);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+  
+  /* Card hover effects */
+  .card-hover {
+    @apply transition-all duration-300;
+  }
+  
+  .card-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+  }
+  
+  /* Smooth transitions */
+  .transition-smooth {
+    transition: all var(--transition-base);
+  }
+  
+  /* Gradient text */
+  .gradient-text {
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  
+  /* Animated underline */
+  .link-underline {
+    @apply relative;
+  }
+  
+  .link-underline::after {
+    content: '';
+    @apply absolute bottom-0 left-0 w-full h-0.5 bg-primary scale-x-0 origin-left;
+    transition: transform var(--transition-base);
+  }
+  
+  .link-underline:hover::after {
+    @apply scale-x-100;
+  }
+  
+  /* Pulse animation for loading states */
+  .pulse-slow {
+    animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  
+  /* Skeleton loaders */
+  .skeleton {
+    @apply animate-pulse rounded-md bg-muted;
+  }
+  
+  /* Interactive states */
+  .interactive {
+    @apply transition-all duration-200 cursor-pointer;
+  }
+  
+  .interactive:hover {
+    @apply scale-[1.02];
+  }
+  
+  .interactive:active {
+    @apply scale-[0.98];
+  }
+}
