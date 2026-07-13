@@ -14,10 +14,11 @@ The app originally ran on a Lovable-managed Supabase backend ("Lovable Cloud"), 
 
 - **Auth redirect URL**: the new project's Auth config defaulted to `site_url: http://localhost:3000` with an empty redirect allow-list (this is a dashboard/Management-API-level setting, not something `db push`/`functions deploy` touches). This broke email confirmation links -- they'd verify successfully server-side but then redirect to `localhost:3000`, which doesn't load. Fixed via the Management API: `site_url` -> `https://medstockwiseapp.vercel.app`, with that URL (and `http://localhost:8080/**` for local dev) added to `uri_allow_list`.
 - **First admin account**: created (signed up normally through the app, defaulted to `nurse`) and promoted to `admin` via direct SQL through the Management API's query endpoint.
+- **Prediction API**: deployed to Render (`https://medstockwise-prediction-api.onrender.com`, free tier -- spins down after 15 min idle, ~30-60s cold start on the next request), `PREDICTION_API_URL`/`PREDICTION_API_KEY` set as Supabase secrets. `/health` and `/predict` smoke-tested directly and return correct results. Two real bugs surfaced and fixed during this deploy (see commit history): `python:3.11-slim` is missing `libgomp1`, which LightGBM's compiled binary needs at import time; and `MODEL_DIR`'s fallback path expression was being evaluated eagerly by `os.environ.get()` even when the env var was already set, crashing on the Docker image's flatter directory layout.
 
 ## What's still needed
 
-1. **Deploy the prediction API** (`services/prediction-api/`) and set its URL/key as secrets (below) -- until then, predictions use the formula fallback, clearly labeled `model_source: "fallback_formula"` in responses.
+Nothing blocking -- the full stack (Supabase backend, prediction API, frontend) is deployed and wired together. Worth doing when convenient: click "Run Predictions" in the live app and confirm the response's `model_source` is `"ml_service"` (not `"fallback_formula"`), as an end-to-end check of the real credential path (this wasn't tested with a real logged-in user session, only with `curl` directly against the prediction API and Supabase's own auth endpoints separately).
 
 ## 1. Supabase (reference -- already done for the new project above)
 
@@ -34,18 +35,20 @@ supabase functions deploy secure-sign-in
 
 If migrating to yet another project in the future, repeat this against the new `--project-ref`.
 
-### Set secrets (still needed once the prediction API is deployed)
+### Secrets (done)
 
 ```bash
-supabase secrets set PREDICTION_API_URL=https://<your-deployed-prediction-api>
-supabase secrets set PREDICTION_API_KEY=<same-value-used-when-deploying-the-prediction-api>
+supabase secrets set PREDICTION_API_URL=https://medstockwise-prediction-api.onrender.com
+supabase secrets set PREDICTION_API_KEY=<the key generated when deploying the prediction API>
 ```
 
 `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are provided automatically to edge functions by Supabase; nothing to set for those.
 
-## 2. Prediction API
+## 2. Prediction API -- done
 
-Not deployed yet -- see [services/prediction-api/README.md](../services/prediction-api/README.md) for the full Docker build/deploy steps. Any container host works (Render, Railway, Fly.io, a VM). Once deployed, set the two secrets above -- until then, `run-predictions` transparently falls back to a formula-based estimate.
+Deployed to Render as a Docker web service, built directly from `services/prediction-api/Dockerfile` in this repo (no local Docker needed -- Render builds it server-side). Free tier: spins down after 15 min idle, ~30-60s cold start on the next request after that.
+
+If redeploying elsewhere, see [services/prediction-api/README.md](../services/prediction-api/README.md) for the general Docker build/deploy steps -- any container host works (Render, Railway, Fly.io, a VM). Two gotchas already fixed in the Dockerfile/code that would otherwise resurface on a fresh host: `libgomp1` must be installed for LightGBM to import, and `MODEL_DIR`'s local-dev fallback path must not be evaluated when the env var is already set (Python's `os.environ.get(name, default)` evaluates `default` unconditionally).
 
 Retraining: `python3 ml/train.py` regenerates `ml/models/`; rebuild and redeploy the prediction API afterward.
 
@@ -76,4 +79,6 @@ Deployed via `vercel --prod`. Vercel's Git integration is connected to `SuhaniCh
 - [x] Vercel Git integration connected to this repo's `main` branch, for auto-deploy on future pushes
 - [x] Auth site_url/redirect allow-list fixed so email confirmation links land somewhere real
 - [x] First admin account created and promoted via SQL
-- [ ] `PREDICTION_API_URL`/`PREDICTION_API_KEY` secrets set once the prediction API is deployed; confirm `model_source: "ml_service"` (not `"fallback_formula"`) in a real prediction response
+- [x] Prediction API deployed to Render; `/health` and `/predict` smoke-tested directly
+- [x] `PREDICTION_API_URL`/`PREDICTION_API_KEY` secrets set on the Supabase project
+- [ ] Confirm `model_source: "ml_service"` (not `"fallback_formula"`) via a real logged-in "Run Predictions" click in the live app

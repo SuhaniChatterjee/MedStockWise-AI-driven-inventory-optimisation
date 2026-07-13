@@ -78,16 +78,18 @@ All of the above run in CI on every push/PR to `main` (`.github/workflows/ci.yml
 
 ## Deployment status
 
+Fully deployed and wired together:
+
 - **Backend**: own, independently-controlled Supabase project (`umnvrftxfxaunofkwbgh`) — schema and all 5 edge functions applied and verified live.
 - **Frontend**: live at [medstockwiseapp.vercel.app](https://medstockwiseapp.vercel.app), pointed at the new backend and verified (routes return 200, bundle contains the new project ref). Vercel's Git integration is connected to this repo's `main` branch for auto-deploy going forward.
-- **Prediction API**: not deployed yet — `run-predictions` falls back to a simple formula until `services/prediction-api` is deployed and its URL/key are set as Supabase secrets.
-- **Still needed**: create+promote the first admin account (see [docs/deployment.md](docs/deployment.md)).
+- **Prediction API**: live on Render, `/health` and `/predict` verified directly. `PREDICTION_API_URL`/`PREDICTION_API_KEY` set as Supabase secrets, so `run-predictions` now calls the real model rather than its formula fallback.
+
+Full status and remaining nice-to-haves in [docs/deployment.md](docs/deployment.md).
 
 Full checklist and exact values in [docs/deployment.md](docs/deployment.md).
 
 ## Future scope
 
-- Deploy the prediction API and wire up real production secrets (see deployment doc).
 - Multi-hospital tenancy.
 - Data export/reporting (CSV/PDF).
 - MFA/WebAuthn for admin accounts.
