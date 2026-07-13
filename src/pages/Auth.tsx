@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Activity } from "lucide-react";
 import PasswordInput from "@/components/auth/PasswordInput";
 import { passwordSchema, validatePasswordMatch } from "@/lib/passwordValidation";
+import { ZodError } from "zod";
 
 export default function Auth() {
   const [email, setEmail] = useState("");
@@ -60,8 +61,8 @@ export default function Auth() {
 
     try {
       passwordSchema.parse(password);
-    } catch (err: any) {
-      newErrors.password = err.errors[0]?.message || "Invalid password";
+    } catch (err) {
+      newErrors.password = err instanceof ZodError ? err.issues[0]?.message : "Invalid password";
     }
 
     if (!validatePasswordMatch(password, confirmPassword)) {

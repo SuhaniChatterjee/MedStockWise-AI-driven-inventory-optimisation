@@ -4,20 +4,22 @@ import { Badge } from "@/components/ui/badge";
 
 interface ModelMetricsProps {
   modelVersion: string;
+  modelType: string;
   mae: number;
   rmse?: number;
   r2Score?: number;
   trainingDate: string;
-  featureImportance?: any;
+  featureImportance?: Record<string, unknown>;
 }
 
-export function ModelMetrics({ 
-  modelVersion, 
-  mae, 
-  rmse, 
-  r2Score, 
+export function ModelMetrics({
+  modelVersion,
+  modelType,
+  mae,
+  rmse,
+  r2Score,
   trainingDate,
-  featureImportance 
+  featureImportance
 }: ModelMetricsProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -28,7 +30,7 @@ export function ModelMetrics({
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">{modelVersion}</div>
-          <Badge variant="outline" className="mt-2">GradientBoosting</Badge>
+          <Badge variant="outline" className="mt-2">{modelType}</Badge>
         </CardContent>
       </Card>
 

@@ -22,3 +22,22 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Environment secrets (see docs/deployment.md for required vars)
+.env
+.env.local
+.env.*.local
+
+# Python (ml/, services/prediction-api/)
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# Supabase CLI local state
+supabase/.temp/
+supabase/.branches/
+
+# Vercel CLI local state
+.vercel

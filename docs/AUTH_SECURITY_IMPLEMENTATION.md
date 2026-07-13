@@ -34,8 +34,12 @@ This document describes the security enhancements implemented for the Hospital I
 - **5 failed attempts** allowed per 15 minutes
 - Tracks by email identifier
 - Automatic lockout for 15 minutes after limit reached
-- Edge function: `check-rate-limit`
-- Database: `login_attempts` table
+- Edge function: `secure-sign-in` (sign-in itself happens server-side inside
+  the function, so the recorded success/failure is always the real outcome
+  -- an earlier version trusted a client-reported `success` flag, which let
+  a caller clear their own lockout or frame another email address by lying
+  about the result)
+- Database: `login_attempts` table (INSERT restricted to `service_role`)
 
 ### 6. Password Reset Flow
 - Time-limited reset tokens (1 hour expiry)
@@ -80,17 +84,29 @@ This document describes the security enhancements implemented for the Hospital I
 
 ## Edge Functions
 
-### check-rate-limit
-- **Path**: `/functions/v1/check-rate-limit`
-- **Purpose**: Track and limit login attempts
-- **Request**: `{ identifier: string, success: boolean }`
-- **Response**: `{ allowed: boolean, remainingAttempts?: number, lockoutUntil?: string }`
+### secure-sign-in
+- **Path**: `/functions/v1/secure-sign-in`
+- **Purpose**: Perform sign-in server-side and enforce lockout based on the
+  real outcome (not a client-reported flag)
+- **Request**: `{ email: string, password: string }`
+- **Response**: `{ success: boolean, session?: { access_token, refresh_token }, message?: string, lockoutUntil?: string, remainingAttempts?: number }`
+- Called from `useAuth().signIn`; the frontend calls
+  `supabase.auth.setSession()` with the returned tokens on success.
 
 ### validate-password
 - **Path**: `/functions/v1/validate-password`
-- **Purpose**: Check password against history
-- **Request**: `{ userId: string, newPasswordHash: string }`
+- **Purpose**: Check a new password against the caller's password history
+- **Auth**: requires a valid session; the user id is derived from the JWT
+  (never trusted from the request body -- an earlier version accepted a
+  client-supplied `userId`, which allowed reading/writing another user's
+  password history)
+- **Request**: `{ newPasswordHash: string }` (SHA-256 hex, see
+  `hashPassword()` in `src/lib/passwordValidation.ts` -- this is only a
+  reuse-detection hash, not the actual auth credential store, which GoTrue
+  manages independently)
 - **Response**: `{ valid: boolean, message?: string }`
+- Called from `ChangePassword.tsx` and `ResetPassword.tsx` before
+  `supabase.auth.updateUser()`.
 
 ## Components
 

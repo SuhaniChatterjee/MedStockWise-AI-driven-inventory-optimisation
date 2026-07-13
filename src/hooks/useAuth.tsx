@@ -57,11 +57,27 @@ export function useAuth() {
   };
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
+    // Routed through the secure-sign-in edge function rather than calling
+    // supabase.auth.signInWithPassword directly, so failed/lockout state is
+    // tracked server-side against the real outcome (see login_attempts).
+    const { data, error: invokeError } = await supabase.functions.invoke("secure-sign-in", {
+      body: { email, password },
     });
-    return { error };
+
+    if (invokeError) {
+      return { error: invokeError };
+    }
+
+    if (!data?.success) {
+      return { error: new Error(data?.message ?? "Sign in failed") };
+    }
+
+    const { error: setSessionError } = await supabase.auth.setSession({
+      access_token: data.session.access_token,
+      refresh_token: data.session.refresh_token,
+    });
+
+    return { error: setSessionError };
   };
 
   const signUp = async (email: string, password: string, fullName: string) => {

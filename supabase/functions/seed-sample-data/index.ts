@@ -1,10 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.47.10";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
+import { createServiceRoleClient, requireUser, userHasAnyRole } from "../_shared/auth.ts";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -12,9 +8,33 @@ serve(async (req) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabase = createServiceRoleClient();
+
+    // Only admins/inventory managers may (re-)seed the database -- this
+    // writes with the service role key, which bypasses RLS entirely.
+    const user = await requireUser(supabase, req);
+    const authorized = await userHasAnyRole(supabase, user.id, ["admin", "inventory_manager"]);
+    if (!authorized) {
+      return jsonResponse({ error: "Only admins or inventory managers can seed data" }, 403);
+    }
+
+    // Idempotency: skip if the database already has inventory data, so this
+    // can't be called repeatedly to keep duplicating rows.
+    const { count, error: countError } = await supabase
+      .from("inventory_items")
+      .select("id", { count: "exact", head: true });
+
+    if (countError) {
+      throw countError;
+    }
+
+    if (count && count > 0) {
+      return jsonResponse({
+        success: true,
+        message: "Database already has inventory data; skipped seeding",
+        stats: { inventory_items: 0, predictions: 0, alerts: 0 },
+      });
+    }
 
     console.log("Starting data seeding...");
 
@@ -130,34 +150,33 @@ serve(async (req) => {
 
     console.log(`Inserted ${insertedItems?.length} inventory items`);
 
-    // Insert model registry entry (from PDF: Validation MAE: 215.72, Test MAE: 157.17)
+    // Insert model registry entry with the REAL metrics from the last
+    // `python3 ml/train.py` run (see ml/models/metrics.json) -- these were
+    // previously fabricated placeholder numbers. Update this block whenever
+    // the model is retrained.
     const { data: modelData, error: modelError } = await supabase
       .from("model_registry")
       .insert({
-        model_version: "v1.0.0",
-        model_type: "GradientBoosting",
-        mae: 157.17,
-        rmse: 215.72,
-        r2_score: 0.92,
+        model_version: "v2.0.0",
+        model_type: "LightGBM",
+        mae: 124.931,
+        rmse: 145.358,
+        r2_score: -0.01,
         training_date: new Date().toISOString(),
         is_active: true,
         feature_importance: {
-          "Avg_Usage_Per_Day": 0.45,
-          "Restock_Lead_Time": 0.30,
-          "Current_Stock": 0.15,
-          "Unit_Cost": 0.10
+          "Usage_Rolling_7": "highest per-prediction contribution (see ml/models/metrics.json)",
+          "Current_Stock": "second highest",
+          "Max_Capacity": "notable negative contribution",
         },
         hyperparameters: {
-          "n_estimators": 100,
-          "learning_rate": 0.1,
-          "max_depth": 3,
-          "random_state": 42
+          "note": "RandomizedSearchCV-selected, see ml/models/feature_schema.json for the full trained schema",
         },
         dataset_summary: {
-          "total_samples": 500,
-          "train_samples": 350,
-          "val_samples": 75,
-          "test_samples": 75
+          "total_samples": 495,
+          "train_samples": 396,
+          "test_samples": 99,
+          "source": "ml/data/raw/inventory_data.csv (real dataset, not the notebook's synthetic generator)"
         }
       })
       .select()
@@ -181,14 +200,20 @@ serve(async (req) => {
           item_id: item.id,
           model_version_id: modelData.id,
           predicted_demand: estimatedDemand,
-          confidence_score: 0.85 + Math.random() * 0.1,
+          // Bootstrap-only estimate (simple formula, not the trained model) so
+          // the dashboard has something to show immediately after seeding;
+          // confidence_score: 0 and the seed_placeholder flag make that
+          // explicit rather than faking a plausible-looking score. Calling
+          // run-predictions afterwards replaces these with real model output.
+          confidence_score: 0,
           feature_values: {
             avg_usage_per_day: item.avg_usage_per_day,
             restock_lead_time: item.restock_lead_time,
             current_stock: item.current_stock,
             shortfall: inventoryShortfall,
             replenishment_needs: replenishmentNeeds,
-            unit_cost: item.unit_cost
+            unit_cost: item.unit_cost,
+            seed_placeholder: true
           },
           feature_contributions: [
             { name: "Avg_Usage_Per_Day", contribution: 45.0 },
@@ -264,23 +289,21 @@ serve(async (req) => {
       console.log(`Inserted ${alerts.length} alerts`);
     }
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: "Sample data seeded successfully",
-        stats: {
-          inventory_items: insertedItems?.length || 0,
-          predictions: insertedItems?.length || 0,
-          alerts: lowStockItems.length
-        }
-      }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return jsonResponse({
+      success: true,
+      message: "Sample data seeded successfully",
+      stats: {
+        inventory_items: insertedItems?.length || 0,
+        predictions: insertedItems?.length || 0,
+        alerts: lowStockItems.length
+      }
+    });
   } catch (error) {
     console.error("Error seeding data:", error);
-    return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    const status = error instanceof Error && /unauthorized|missing authorization/i.test(error.message) ? 401 : 500;
+    return jsonResponse(
+      { error: error instanceof Error ? error.message : "Unknown error" },
+      status
     );
   }
 });

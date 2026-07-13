@@ -12,7 +12,7 @@ export const passwordSchema = z
   .refine((val) => /[A-Z]/.test(val), 'Must include at least one uppercase letter')
   .refine((val) => /[a-z]/.test(val), 'Must include at least one lowercase letter')
   .refine((val) => /\d/.test(val), 'Must include at least one digit')
-  .refine((val) => /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(val), 'Must include at least one special character')
+  .refine((val) => /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(val), 'Must include at least one special character')
   .refine(
     (val) => !COMMON_PASSWORDS.includes(val.toLowerCase()),
     'Password is too common. Choose a unique password'
@@ -46,7 +46,7 @@ export function calculatePasswordStrength(password: string): PasswordStrength {
   const hasUpper = /[A-Z]/.test(password);
   const hasLower = /[a-z]/.test(password);
   const hasDigit = /\d/.test(password);
-  const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
+  const hasSpecial = /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password);
 
   if (hasUpper) score += 10;
   else feedback.push('Add uppercase letters');
@@ -83,4 +83,19 @@ export function calculatePasswordStrength(password: string): PasswordStrength {
 
 export function validatePasswordMatch(password: string, confirmPassword: string): boolean {
   return password === confirmPassword && password.length > 0;
+}
+
+/**
+ * Deterministic SHA-256 hash used only for password-reuse detection
+ * (password_history table). This is NOT the credential store -- Supabase
+ * Auth/GoTrue independently manages the real (salted, bcrypt) password
+ * hash used for authentication. A deterministic hash is required here so
+ * exact-match reuse comparisons are possible.
+ */
+export async function hashPassword(password: string): Promise<string> {
+  const encoded = new TextEncoder().encode(password);
+  const digest = await crypto.subtle.digest("SHA-256", encoded);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }

@@ -8,16 +8,26 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Upload, Play, Download, TrendingUp, AlertCircle, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { CSVUploadWizard } from "@/components/demo/CSVUploadWizard";
+import { CSVUploadWizard, CSVPredictionResult } from "@/components/demo/CSVUploadWizard";
 import { SingleRowTest } from "@/components/demo/SingleRowTest";
-import { DemoDataTable } from "@/components/demo/DemoDataTable";
+import { DemoDataTable, DemoResultRow } from "@/components/demo/DemoDataTable";
 import { ModelMetrics } from "@/components/demo/ModelMetrics";
 import { PredictionChart } from "@/components/demo/PredictionChart";
 
+interface ModelInfo {
+  model_version: string;
+  model_type: string;
+  mae: number;
+  rmse: number | null;
+  r2_score: number | null;
+  training_date: string;
+  feature_importance: Record<string, unknown> | null;
+}
+
 export default function Demo() {
-  const [modelInfo, setModelInfo] = useState<any>(null);
-  const [sampleData, setSampleData] = useState<any[]>([]);
-  const [batchResults, setBatchResults] = useState<any[]>([]);
+  const [modelInfo, setModelInfo] = useState<ModelInfo | null>(null);
+  const [sampleData, setSampleData] = useState<DemoResultRow[]>([]);
+  const [batchResults, setBatchResults] = useState<CSVPredictionResult[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -33,7 +43,11 @@ export default function Demo() {
       .order("created_at", { ascending: false })
       .limit(1);
     
-    if (data && data.length > 0) setModelInfo(data[0]);
+    // Supabase's generated types represent jsonb columns as the generic
+    // `Json` union, which is more conservative than the actual known shape
+    // written by ml/train.py + seed-sample-data. Cast once at this DB
+    // boundary rather than loosening ModelInfo/DemoResultRow throughout.
+    if (data && data.length > 0) setModelInfo(data[0] as unknown as ModelInfo);
   };
 
   const fetchSampleData = async () => {
@@ -46,14 +60,14 @@ export default function Demo() {
       .order("created_at", { ascending: false })
       .limit(20);
     
-    if (data) setSampleData(data);
+    if (data) setSampleData(data as unknown as DemoResultRow[]);
   };
 
   const downloadTemplate = () => {
     const template = `item_name,item_type,current_stock,min_required,max_capacity,avg_usage_per_day,restock_lead_time,unit_cost,vendor_name
-Surgical Gloves,PPE,500,200,1000,50,7,2.50,MedSupply Inc
-Syringes 10ml,Medical Supplies,300,150,800,40,5,1.20,HealthCare Co
-N95 Masks,PPE,200,100,500,25,10,3.00,SafetyFirst Ltd`;
+Surgical Gloves,Consumable,500,200,1000,50,7,2.50,MedSupply Inc
+Syringes 10ml,Consumable,300,150,800,40,5,1.20,HealthCare Co
+Ventilator,Equipment,200,100,500,25,10,3000.00,SafetyFirst Ltd`;
 
     const blob = new Blob([template], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -91,9 +105,11 @@ N95 Masks,PPE,200,100,500,25,10,3.00,SafetyFirst Ltd`;
             <div>
               <CardTitle className="text-lg">About This Model</CardTitle>
               <CardDescription className="mt-2">
-                This demo uses the exact preprocessing and model logic from our GradientBoosting regressor.
-                The model predicts inventory demand based on historical usage patterns, lead times, and stock levels.
-                All predictions show feature importance and explainability for transparency.
+                This demo calls the same prediction service the live app uses (see{" "}
+                <code className="text-xs">services/prediction-api</code>), which serves the trained model
+                from <code className="text-xs">ml/train.py</code>. Predictions are based on historical
+                usage patterns, lead times, and stock levels, with real per-prediction feature
+                contributions shown for transparency.
               </CardDescription>
             </div>
           </div>
@@ -101,13 +117,14 @@ N95 Masks,PPE,200,100,500,25,10,3.00,SafetyFirst Ltd`;
       </Card>
 
       {modelInfo && (
-        <ModelMetrics 
+        <ModelMetrics
           modelVersion={modelInfo.model_version}
+          modelType={modelInfo.model_type}
           mae={modelInfo.mae}
-          rmse={modelInfo.rmse}
-          r2Score={modelInfo.r2_score}
+          rmse={modelInfo.rmse ?? undefined}
+          r2Score={modelInfo.r2_score ?? undefined}
           trainingDate={modelInfo.training_date}
-          featureImportance={modelInfo.feature_importance}
+          featureImportance={modelInfo.feature_importance ?? undefined}
         />
       )}
 

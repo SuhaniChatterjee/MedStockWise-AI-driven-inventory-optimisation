@@ -8,12 +8,12 @@ import { Badge } from "@/components/ui/badge";
 
 interface CostOptimization {
   id: string;
-  item_id: string;
-  eoq: number;
-  reorder_point: number;
-  safety_stock: number;
-  optimal_order_quantity: number;
-  estimated_annual_cost: number;
+  item_id: string | null;
+  eoq: number | null;
+  reorder_point: number | null;
+  safety_stock: number | null;
+  optimal_order_quantity: number | null;
+  estimated_annual_cost: number | null;
   calculation_date: string;
   item_name?: string;
   current_stock?: number;
@@ -41,12 +41,18 @@ export default function CostOptimization() {
       .order("calculation_date", { ascending: false });
 
     if (data) {
-      const formatted = data.map(opt => ({
-        ...opt,
-        item_name: (opt.inventory_items as any)?.item_name,
-        current_stock: (opt.inventory_items as any)?.current_stock,
-        should_reorder: (opt.inventory_items as any)?.current_stock <= opt.reorder_point,
-      }));
+      const formatted = data.map((opt) => {
+        const joinedItem = opt.inventory_items as { item_name: string; current_stock: number } | null;
+        return {
+          ...opt,
+          item_name: joinedItem?.item_name,
+          current_stock: joinedItem?.current_stock,
+          should_reorder:
+            opt.reorder_point != null &&
+            joinedItem?.current_stock != null &&
+            joinedItem.current_stock <= opt.reorder_point,
+        };
+      });
       setOptimizations(formatted);
     }
     setLoading(false);
@@ -67,10 +73,10 @@ export default function CostOptimization() {
       });
 
       fetchOptimizations();
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "Calculation Failed",
-        description: error.message || "Failed to calculate cost optimization",
+        description: error instanceof Error ? error.message : "Failed to calculate cost optimization",
         variant: "destructive",
       });
     } finally {
@@ -201,7 +207,7 @@ export default function CostOptimization() {
                     <p className="text-sm text-muted-foreground">Annual Cost</p>
                     <p className="text-2xl font-bold flex items-center gap-2">
                       <DollarSign className="h-5 w-5 text-success" />
-                      {opt.estimated_annual_cost.toFixed(0)}
+                      {(opt.estimated_annual_cost ?? 0).toFixed(0)}
                     </p>
                   </div>
                 </div>

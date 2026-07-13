@@ -13,7 +13,7 @@ interface InventoryStats {
 }
 
 export default function Dashboard() {
-  const { user } = useAuth();
+  const { isManager } = useAuth();
   const { toast } = useToast();
   const [stats, setStats] = useState<InventoryStats>({
     totalItems: 0,
@@ -25,13 +25,19 @@ export default function Dashboard() {
   const [seeding, setSeeding] = useState(false);
 
   useEffect(() => {
+    // Re-runs once roles finish loading (isManager flips from its initial
+    // `false`), so managers/admins still get the auto-seed on first paint.
     initializeDashboard();
-  }, []);
+  }, [isManager]);
 
   const initializeDashboard = async () => {
     await fetchStats();
-    
-    // Auto-seed if database is empty
+
+    // Auto-seed if database is empty. Seeding requires admin/inventory_manager
+    // (the edge function now enforces this too) -- nurses just see the empty
+    // state until a manager/admin has initialized the system.
+    if (!isManager) return;
+
     const { data: items } = await supabase.from("inventory_items").select("id");
     if (items && items.length === 0) {
       await seedDatabase();

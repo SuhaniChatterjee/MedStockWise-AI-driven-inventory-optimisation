@@ -113,10 +113,10 @@ export default function Admin() {
         title: "Data Seeded Successfully",
         description: `Added ${data.stats.inventory_items} items, ${data.stats.predictions} predictions, and ${data.stats.alerts} alerts`,
       });
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "Seeding Failed",
-        description: error.message,
+        description: error instanceof Error ? error.message : "Unknown error",
         variant: "destructive",
       });
     } finally {

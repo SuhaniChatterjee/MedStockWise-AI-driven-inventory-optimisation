@@ -1,0 +1,46 @@
+{
+  "trained_on": "ml/data/raw/inventory_data.csv",
+  "dataset_size": {
+    "total_usable_records": 495,
+    "train": 396,
+    "test": 99
+  },
+  "gradient_boosting_baseline": {
+    "mae": 130.882,
+    "rmse": 152.92,
+    "mape": 204.728,
+    "r2": -0.1178
+  },
+  "lightgbm_tuned": {
+    "mae": 124.931,
+    "rmse": 145.358,
+    "mape": 202.522,
+    "r2": -0.01
+  },
+  "selected_model": "LightGBM",
+  "selected_model_metrics": {
+    "mae": 124.931,
+    "rmse": 145.358,
+    "mape": 202.522,
+    "r2": -0.01
+  },
+  "shortage_risk_classification": {
+    "threshold": 1.0,
+    "precision": 0.882,
+    "recall": 0.931,
+    "f1": 0.905,
+    "accuracy": 0.859,
+    "confusion_matrix": [
+      [
+        18,
+        9
+      ],
+      [
+        5,
+        67
+      ]
+    ],
+    "positive_rate_actual": 0.727
+  },
+  "random_seed": 42
+}
