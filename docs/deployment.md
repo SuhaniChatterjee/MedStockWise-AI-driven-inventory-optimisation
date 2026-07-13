@@ -61,7 +61,7 @@ VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_OBLdIYT__sYdnoI_77EMOQ_kxweEO34
 VITE_SUPABASE_URL=https://umnvrftxfxaunofkwbgh.supabase.co
 ```
 
-Deployed via `vercel --prod` (no GitHub integration is connected on this project, so pushing to `main` does **not** auto-deploy -- redeploy manually with `vercel --prod` after future changes, or connect GitHub integration in Vercel's project settings if you want that automation).
+Deployed via `vercel --prod`. Vercel's Git integration is connected to `SuhaniChatterjee/MedStockWise-AI-driven-inventory-optimisation` (this repo's actual current name/location -- it was previously connected to an older, unrelated one-shot export repo), production branch `main` -- future pushes to `main` will auto-deploy.
 
 ## 4. CI
 
@@ -72,7 +72,8 @@ Deployed via `vercel --prod` (no GitHub integration is connected on this project
 - [x] `supabase db push` completed with no errors (new project)
 - [x] All 5 edge functions deployed and `ACTIVE` (new project)
 - [x] `secure-sign-in` smoke-tested live (rejects bad credentials correctly)
-- [ ] Vercel env vars updated to the new project + redeployed
+- [x] Vercel env vars updated to the new project + redeployed
+- [x] Frontend loads with no console-breaking errors against the new backend; `/`, `/auth`, `/inventory` all verified 200 live
+- [x] Vercel Git integration connected to this repo's `main` branch, for auto-deploy on future pushes
 - [ ] First admin account created and promoted via SQL
 - [ ] `PREDICTION_API_URL`/`PREDICTION_API_KEY` secrets set once the prediction API is deployed; confirm `model_source: "ml_service"` (not `"fallback_formula"`) in a real prediction response
-- [ ] Frontend loads with no console errors against the new backend on `/auth` and the dashboard
