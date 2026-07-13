@@ -171,8 +171,9 @@ export default function Admin() {
               <div className="flex-1">
                 <h4 className="font-semibold">Load Sample Dataset</h4>
                 <p className="text-sm text-muted-foreground">
-                  Populate the database with inventory items, predictions, and model metrics from the PBL Project PDF.
-                  Includes 8 inventory items, model v1.0.0 with MAE: 157.17, and sample predictions.
+                  Populate the database with sample inventory items, a model registry entry, and
+                  bootstrap predictions to get started. Safe to run more than once -- it's a no-op
+                  if inventory data already exists.
                 </p>
               </div>
             </div>
@@ -186,7 +187,7 @@ export default function Admin() {
             <h4 className="font-semibold mb-2">What gets populated:</h4>
             <ul className="text-sm space-y-1 list-disc list-inside text-muted-foreground">
               <li>8 Inventory Items (Ventilator, Surgical Mask, IV Drip, etc.)</li>
-              <li>Model Registry v1.0.0 (GradientBoosting, MAE: 157.17, RMSE: 215.72)</li>
+              <li>Model Registry entry for the currently trained model (see the Predictions page for its live version/MAE)</li>
               <li>Prediction History with feature contributions</li>
               <li>Dashboard Predictions (Estimated Demand, Shortfall, Replenishment Needs)</li>
               <li>Low Stock Alerts for items below minimum threshold</li>

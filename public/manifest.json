@@ -1,7 +1,7 @@
 {
   "name": "MedStock Wise - Medical Inventory Management",
   "short_name": "MedStock",
-  "description": "AI-powered medical inventory management system with demand forecasting and cost optimization",
+  "description": "Hospital inventory management with demand estimation and cost optimization",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

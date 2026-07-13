@@ -215,7 +215,7 @@ export default function Dashboard() {
                 </div>
                 <h3 className="font-semibold text-lg">Run Predictions</h3>
                 <p className="text-sm text-muted-foreground">
-                  AI-powered demand forecasting
+                  Demand estimates and shortage-risk scoring
                 </p>
               </div>
             </Link>

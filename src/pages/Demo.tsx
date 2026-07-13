@@ -89,7 +89,7 @@ Ventilator,Equipment,200,100,500,25,10,3000.00,SafetyFirst Ltd`;
         <div>
           <h1 className="text-4xl font-bold tracking-tight">Try the Model - Demo</h1>
           <p className="text-muted-foreground mt-2">
-            Preview how our AI-powered demand forecasting works with sample data or upload your own
+            Preview how demand estimates and shortage-risk scoring work, using sample data or your own upload
           </p>
         </div>
         <Button onClick={downloadTemplate} variant="outline" className="gap-2">

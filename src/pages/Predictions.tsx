@@ -126,9 +126,9 @@ export default function Predictions() {
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-4xl font-bold tracking-tight">AI Demand Predictions</h1>
+        <h1 className="text-4xl font-bold tracking-tight">Demand Predictions</h1>
         <p className="text-muted-foreground mt-2">
-          ML-powered forecasting for inventory demand and replenishment needs
+          Model-assisted demand estimates and restocking guidance
         </p>
       </div>
 
@@ -150,6 +150,10 @@ export default function Predictions() {
                 Active
               </Badge>
             </div>
+            <p className="text-xs text-muted-foreground pt-2">
+              Estimates are directional, not a guarantee -- treat them alongside your own judgement.
+              Accuracy improves over time as more real usage history is recorded per item.
+            </p>
           </CardHeader>
         </Card>
       )}
