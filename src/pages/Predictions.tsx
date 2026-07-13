@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -37,51 +38,46 @@ interface InventoryItemOption {
 }
 
 export default function Predictions() {
-  const [loading, setLoading] = useState(false);
   const [runAll, setRunAll] = useState(true);
   const [selectedItem, setSelectedItem] = useState<string>("");
-  const [items, setItems] = useState<InventoryItemOption[]>([]);
-  const [predictions, setPredictions] = useState<Prediction[]>([]);
-  const [modelInfo, setModelInfo] = useState<ModelInfo | null>(null);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    fetchItems();
-    fetchModelInfo();
-    fetchRecentPredictions();
-  }, []);
+  const { data: items = [] } = useQuery({
+    queryKey: ["inventory-item-options"],
+    queryFn: async (): Promise<InventoryItemOption[]> => {
+      const { data, error } = await supabase.from("inventory_items").select("id, item_name").order("item_name");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
 
-  const fetchItems = async () => {
-    const { data } = await supabase
-      .from("inventory_items")
-      .select("id, item_name")
-      .order("item_name");
-    
-    if (data) setItems(data);
-  };
+  const { data: modelInfo = null } = useQuery({
+    queryKey: ["active-model-info"],
+    queryFn: async (): Promise<ModelInfo | null> => {
+      // .single() errors if there's no active model row (or more than one)
+      // -- treated as "no model info to show" rather than a page-level
+      // failure, matching the previous implementation's graceful fallback.
+      const { data } = await supabase
+        .from("model_registry")
+        .select("*")
+        .eq("is_active", true)
+        .single();
+      return data;
+    },
+  });
 
-  const fetchModelInfo = async () => {
-    const { data } = await supabase
-      .from("model_registry")
-      .select("*")
-      .eq("is_active", true)
-      .single();
-    
-    if (data) setModelInfo(data);
-  };
+  const { data: predictions = [] } = useQuery({
+    queryKey: ["recent-predictions"],
+    queryFn: async (): Promise<Prediction[]> => {
+      const { data, error } = await supabase
+        .from("predictions")
+        .select(`*, inventory_items(item_name)`)
+        .order("created_at", { ascending: false })
+        .limit(10);
+      if (error) throw error;
 
-  const fetchRecentPredictions = async () => {
-    const { data } = await supabase
-      .from("predictions")
-      .select(`
-        *,
-        inventory_items(item_name)
-      `)
-      .order("created_at", { ascending: false })
-      .limit(10);
-    
-    if (data) {
-      const formattedPredictions = data.map((p) => {
+      return (data ?? []).map((p) => {
         const joinedItem = p.inventory_items as { item_name: string } | null;
         return {
           item_id: p.item_id,
@@ -91,38 +87,32 @@ export default function Predictions() {
           item_name: joinedItem?.item_name,
         };
       });
-      setPredictions(formattedPredictions);
-    }
-  };
+    },
+  });
 
-  const runPredictions = async () => {
-    setLoading(true);
-    try {
+  const runPredictionsMutation = useMutation({
+    mutationFn: async () => {
       const { data, error } = await supabase.functions.invoke("run-predictions", {
-        body: {
-          run_all: runAll,
-          item_id: runAll ? undefined : selectedItem,
-        },
+        body: { run_all: runAll, item_id: runAll ? undefined : selectedItem },
       });
-
       if (error) throw error;
-
+      return data;
+    },
+    onSuccess: (data) => {
       toast({
         title: "Predictions Complete",
         description: `Generated ${data.predictions.length} predictions and ${data.alerts_generated} alerts using model ${data.model_version}`,
       });
-
-      fetchRecentPredictions();
-    } catch (error) {
+      queryClient.invalidateQueries({ queryKey: ["recent-predictions"] });
+    },
+    onError: (error) => {
       toast({
         title: "Prediction Failed",
         description: error instanceof Error ? error.message : "Failed to run predictions",
         variant: "destructive",
       });
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+  });
 
   const handleExport = () => {
     exportToCsv(
@@ -135,6 +125,8 @@ export default function Predictions() {
       }))
     );
   };
+
+  const loading = runPredictionsMutation.isPending;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -221,8 +213,8 @@ export default function Predictions() {
             </Select>
           )}
 
-          <Button 
-            onClick={runPredictions} 
+          <Button
+            onClick={() => runPredictionsMutation.mutate()}
             disabled={loading || (!runAll && !selectedItem)}
             className="w-full gap-2"
           >
@@ -259,7 +251,7 @@ export default function Predictions() {
                       </Badge>
                     )}
                   </div>
-                  
+
                   <div className="grid grid-cols-3 gap-4 text-sm">
                     <div>
                       <p className="text-muted-foreground">Est. Demand</p>
@@ -282,7 +274,7 @@ export default function Predictions() {
                   {pred.replenishment_needs > 0 && (
                     <div className="space-y-2">
                       <p className="text-sm text-muted-foreground">Urgency Level</p>
-                      <Progress 
+                      <Progress
                         value={(pred.inventory_shortfall / pred.estimated_demand) * 100}
                         className="h-2"
                       />

@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, AlertTriangle, Info, Check, X } from "lucide-react";
+import { AlertCircle, AlertTriangle, Info, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 
@@ -20,30 +21,35 @@ interface Alert {
 }
 
 export default function Alerts() {
-  const [alerts, setAlerts] = useState<Alert[]>([]);
   const [filter, setFilter] = useState<"all" | "unread">("unread");
-  const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
+  const { data: alerts = [], isLoading } = useQuery({
+    queryKey: ["alerts", filter],
+    queryFn: async (): Promise<Alert[]> => {
+      let query = supabase.from("alerts_history").select("*").order("created_at", { ascending: false });
+      if (filter === "unread") {
+        query = query.eq("is_read", false);
+      }
+      const { data, error } = await query;
+      if (error) throw error;
+      return (data as Alert[]) ?? [];
+    },
+  });
+
+  // Subscribed once (not re-subscribed per filter change, unlike the
+  // previous implementation) -- invalidating the "alerts" query key
+  // refetches whichever filter is currently active.
   useEffect(() => {
-    fetchAlerts();
-    
-    // Subscribe to new alerts
     const channel = supabase
-      .channel('alerts-changes')
+      .channel("alerts-changes")
       .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'alerts_history'
-        },
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "alerts_history" },
         () => {
-          fetchAlerts();
-          toast({
-            title: "New Alert",
-            description: "A new alert has been received",
-          });
+          queryClient.invalidateQueries({ queryKey: ["alerts"] });
+          toast({ title: "New Alert", description: "A new alert has been received" });
         }
       )
       .subscribe();
@@ -51,50 +57,28 @@ export default function Alerts() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [filter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const fetchAlerts = async () => {
-    let query = supabase
-      .from("alerts_history")
-      .select("*")
-      .order("created_at", { ascending: false });
+  const markAsReadMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("alerts_history").update({ is_read: true }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["alerts"] }),
+  });
 
-    if (filter === "unread") {
-      query = query.eq("is_read", false);
-    }
-
-    const { data } = await query;
-    if (data) setAlerts(data as Alert[]);
-    setLoading(false);
-  };
-
-  const markAsRead = async (id: string) => {
-    const { error } = await supabase
-      .from("alerts_history")
-      .update({ is_read: true })
-      .eq("id", id);
-
-    if (!error) {
-      setAlerts(alerts.map(a => a.id === id ? { ...a, is_read: true } : a));
-    }
-  };
-
-  const markAllAsRead = async () => {
-    const unreadIds = alerts.filter(a => !a.is_read).map(a => a.id);
-    
-    const { error } = await supabase
-      .from("alerts_history")
-      .update({ is_read: true })
-      .in("id", unreadIds);
-
-    if (!error) {
-      toast({
-        title: "Success",
-        description: "All alerts marked as read",
-      });
-      fetchAlerts();
-    }
-  };
+  const markAllAsReadMutation = useMutation({
+    mutationFn: async () => {
+      const unreadIds = alerts.filter((a) => !a.is_read).map((a) => a.id);
+      const { error } = await supabase.from("alerts_history").update({ is_read: true }).in("id", unreadIds);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: "Success", description: "All alerts marked as read" });
+      queryClient.invalidateQueries({ queryKey: ["alerts"] });
+    },
+  });
 
   const getSeverityIcon = (severity: string) => {
     switch (severity) {
@@ -118,9 +102,9 @@ export default function Alerts() {
     }
   };
 
-  const unreadCount = alerts.filter(a => !a.is_read).length;
+  const unreadCount = alerts.filter((a) => !a.is_read).length;
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -138,7 +122,12 @@ export default function Alerts() {
           </p>
         </div>
         {unreadCount > 0 && (
-          <Button onClick={markAllAsRead} variant="outline" className="gap-2">
+          <Button
+            onClick={() => markAllAsReadMutation.mutate()}
+            disabled={markAllAsReadMutation.isPending}
+            variant="outline"
+            className="gap-2"
+          >
             <Check className="h-4 w-4" />
             Mark All as Read ({unreadCount})
           </Button>
@@ -170,8 +159,8 @@ export default function Alerts() {
           </Card>
         ) : (
           alerts.map((alert) => (
-            <Card 
-              key={alert.id} 
+            <Card
+              key={alert.id}
               className={`${!alert.is_read ? "border-l-4" : ""} ${getSeverityColor(alert.severity)}`}
             >
               <CardHeader>
@@ -197,7 +186,8 @@ export default function Alerts() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => markAsRead(alert.id)}
+                      onClick={() => markAsReadMutation.mutate(alert.id)}
+                      disabled={markAsReadMutation.isPending}
                       className="gap-2"
                     >
                       <Check className="h-4 w-4" />

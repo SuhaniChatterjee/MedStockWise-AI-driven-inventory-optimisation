@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Link } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package, TrendingDown, AlertTriangle, DollarSign, TrendingUp } from "lucide-react";
@@ -13,87 +14,68 @@ interface InventoryStats {
   criticalItems: number;
 }
 
+const EMPTY_STATS: InventoryStats = {
+  totalItems: 0,
+  lowStockItems: 0,
+  totalValue: 0,
+  criticalItems: 0,
+};
+
 export default function Dashboard() {
   const { isManager } = useAuth();
   const { toast } = useToast();
-  const [stats, setStats] = useState<InventoryStats>({
-    totalItems: 0,
-    lowStockItems: 0,
-    totalValue: 0,
-    criticalItems: 0,
-  });
-  const [loading, setLoading] = useState(true);
-  const [seeding, setSeeding] = useState(false);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    // Re-runs once roles finish loading (isManager flips from its initial
-    // `false`), so managers/admins still get the auto-seed on first paint.
-    initializeDashboard();
-  }, [isManager]);
-
-  const initializeDashboard = async () => {
-    await fetchStats();
-
-    // Auto-seed if database is empty. Seeding requires admin/inventory_manager
-    // (the edge function now enforces this too) -- nurses just see the empty
-    // state until a manager/admin has initialized the system.
-    if (!isManager) return;
-
-    const { data: items } = await supabase.from("inventory_items").select("id");
-    if (items && items.length === 0) {
-      await seedDatabase();
-    }
-  };
-
-  const seedDatabase = async () => {
-    setSeeding(true);
-    try {
-      const { error } = await supabase.functions.invoke("seed-sample-data");
-      
+  const { data: stats = EMPTY_STATS, isLoading } = useQuery({
+    queryKey: ["inventory-stats"],
+    queryFn: async (): Promise<InventoryStats> => {
+      const { data: items, error } = await supabase.from("inventory_items").select("*");
       if (error) throw error;
-      
-      toast({
-        title: "Database Initialized",
-        description: "Sample data has been loaded successfully.",
-      });
-      
-      // Refresh stats after seeding
-      await fetchStats();
-    } catch (error) {
+      if (!items) return EMPTY_STATS;
+
+      return {
+        totalItems: items.length,
+        lowStockItems: items.filter((item) => item.current_stock < item.min_required).length,
+        criticalItems: items.filter((item) => item.current_stock < item.min_required * 0.5).length,
+        totalValue: items.reduce(
+          (sum, item) => sum + item.current_stock * parseFloat(item.unit_cost.toString()),
+          0
+        ),
+      };
+    },
+  });
+
+  const seedMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.functions.invoke("seed-sample-data");
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: "Database Initialized", description: "Sample data has been loaded successfully." });
+      queryClient.invalidateQueries({ queryKey: ["inventory-stats"] });
+    },
+    onError: (error) => {
       console.error("Seeding error:", error);
       toast({
         title: "Seeding Failed",
         description: "Could not load sample data. Please try again.",
         variant: "destructive",
       });
-    } finally {
-      setSeeding(false);
-      setLoading(false);
+    },
+  });
+
+  // Auto-seed if the database is empty, once stats have loaded. Seeding
+  // requires admin/inventory_manager (the edge function enforces this too)
+  // -- nurses just see the empty state until a manager/admin initializes it.
+  useEffect(() => {
+    if (isLoading || !isManager || seedMutation.isPending) return;
+    if (stats.totalItems === 0) {
+      seedMutation.mutate();
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading, isManager, stats.totalItems]);
 
-  const fetchStats = async () => {
-    const { data: items, error } = await supabase
-      .from("inventory_items")
-      .select("*");
-
-    if (!error && items) {
-      const totalItems = items.length;
-      const lowStockItems = items.filter(
-        (item) => item.current_stock < item.min_required
-      ).length;
-      const criticalItems = items.filter(
-        (item) => item.current_stock < item.min_required * 0.5
-      ).length;
-      const totalValue = items.reduce(
-        (sum, item) => sum + item.current_stock * parseFloat(item.unit_cost.toString()),
-        0
-      );
-
-      setStats({ totalItems, lowStockItems, totalValue, criticalItems });
-    }
-    setLoading(false);
-  };
+  const seeding = seedMutation.isPending;
 
   const statCards = [
     {
@@ -122,7 +104,7 @@ export default function Dashboard() {
     },
   ];
 
-  if (loading || seeding) {
+  if (isLoading || seeding) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6">
         <div className="relative">
@@ -156,8 +138,8 @@ export default function Dashboard() {
         {statCards.map((stat, index) => {
           const Icon = stat.icon;
           return (
-            <Card 
-              key={stat.title} 
+            <Card
+              key={stat.title}
               className="overflow-hidden card-hover border-none"
               style={{ animationDelay: `${index * 100}ms` }}
             >
