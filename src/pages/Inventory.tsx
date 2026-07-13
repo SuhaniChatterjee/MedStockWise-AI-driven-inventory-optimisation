@@ -15,7 +15,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, ChevronLeft, ChevronRight, Pencil, Trash2 } from "lucide-react";
+import { Plus, Search, ChevronLeft, ChevronRight, Pencil, Trash2, Download } from "lucide-react";
+import { exportToCsv } from "@/lib/csv-export";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
@@ -209,6 +210,7 @@ export default function Inventory() {
 
   const [deletingItem, setDeletingItem] = useState<InventoryItem | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   // Server-side pagination + search (via .range()/.ilike()) rather than
   // fetching every row and filtering client-side, so this doesn't degrade
@@ -239,6 +241,44 @@ export default function Inventory() {
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      // Exports everything matching the current search, not just the
+      // current page -- pagination is a display concern, not a limit on
+      // what the user can export.
+      let query = supabase.from("inventory_items").select("*").order("item_name");
+      if (debouncedSearch.trim()) {
+        query = query.ilike("item_name", `%${debouncedSearch.trim()}%`);
+      }
+      const { data: allItems, error } = await query;
+      if (error) throw error;
+
+      exportToCsv(
+        `inventory-${new Date().toISOString().slice(0, 10)}`,
+        (allItems ?? []).map((item) => ({
+          item_name: item.item_name,
+          item_type: item.item_type,
+          current_stock: item.current_stock,
+          min_required: item.min_required,
+          max_capacity: item.max_capacity,
+          unit_cost: item.unit_cost,
+          avg_usage_per_day: item.avg_usage_per_day,
+          restock_lead_time: item.restock_lead_time,
+          vendor_name: item.vendor_name ?? "",
+        }))
+      );
+    } catch (err) {
+      toast({
+        title: "Export failed",
+        description: err instanceof Error ? err.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -462,9 +502,21 @@ export default function Inventory() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-xl">Inventory Items</CardTitle>
-            <Badge variant="secondary" className="text-base px-3 py-1">
-              {total} item{total === 1 ? "" : "s"}
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary" className="text-base px-3 py-1">
+                {total} item{total === 1 ? "" : "s"}
+              </Badge>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExport}
+                disabled={exporting || total === 0}
+                className="gap-2"
+              >
+                <Download className="h-4 w-4" />
+                {exporting ? "Exporting..." : "Export CSV"}
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">

@@ -2,9 +2,10 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { DollarSign, TrendingDown, Package, AlertTriangle, Play } from "lucide-react";
+import { DollarSign, TrendingDown, Package, AlertTriangle, Play, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { exportToCsv } from "@/lib/csv-export";
 
 interface CostOptimization {
   id: string;
@@ -87,6 +88,23 @@ export default function CostOptimization() {
   const totalAnnualCost = optimizations.reduce((sum, opt) => sum + Number(opt.estimated_annual_cost), 0);
   const itemsNeedingReorder = optimizations.filter(opt => opt.should_reorder).length;
 
+  const handleExport = () => {
+    exportToCsv(
+      `cost-optimization-${new Date().toISOString().slice(0, 10)}`,
+      optimizations.map((opt) => ({
+        item_name: opt.item_name ?? "Unknown",
+        current_stock: opt.current_stock ?? "",
+        eoq: opt.eoq ?? "",
+        reorder_point: opt.reorder_point ?? "",
+        safety_stock: opt.safety_stock ?? "",
+        optimal_order_quantity: opt.optimal_order_quantity ?? "",
+        estimated_annual_cost: opt.estimated_annual_cost ?? "",
+        should_reorder: opt.should_reorder ?? false,
+        calculation_date: opt.calculation_date,
+      }))
+    );
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -160,7 +178,13 @@ export default function CostOptimization() {
 
       {optimizations.length > 0 && (
         <div className="space-y-4">
-          <h2 className="text-2xl font-bold">Optimization Results</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold">Optimization Results</h2>
+            <Button variant="outline" size="sm" onClick={handleExport} className="gap-2">
+              <Download className="h-4 w-4" />
+              Export CSV
+            </Button>
+          </div>
           {optimizations.map((opt) => (
             <Card key={opt.id} className={opt.should_reorder ? "border-warning" : ""}>
               <CardHeader>

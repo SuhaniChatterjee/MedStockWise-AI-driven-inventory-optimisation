@@ -2,8 +2,9 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, Play, AlertCircle, CheckCircle } from "lucide-react";
+import { TrendingUp, Play, AlertCircle, CheckCircle, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { exportToCsv } from "@/lib/csv-export";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -123,6 +124,18 @@ export default function Predictions() {
     }
   };
 
+  const handleExport = () => {
+    exportToCsv(
+      `predictions-${new Date().toISOString().slice(0, 10)}`,
+      predictions.map((p) => ({
+        item_name: p.item_name ?? "Unknown",
+        estimated_demand: p.estimated_demand,
+        inventory_shortfall: p.inventory_shortfall,
+        replenishment_needs: p.replenishment_needs,
+      }))
+    );
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
@@ -222,8 +235,16 @@ export default function Predictions() {
       {predictions.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Recent Predictions</CardTitle>
-            <CardDescription>Latest demand forecasts and restocking recommendations</CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Recent Predictions</CardTitle>
+                <CardDescription>Latest demand forecasts and restocking recommendations</CardDescription>
+              </div>
+              <Button variant="outline" size="sm" onClick={handleExport} className="gap-2">
+                <Download className="h-4 w-4" />
+                Export CSV
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
