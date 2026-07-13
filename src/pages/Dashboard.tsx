@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package, TrendingDown, AlertTriangle, DollarSign, TrendingUp } from "lucide-react";
@@ -190,8 +191,8 @@ export default function Dashboard() {
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 md:grid-cols-3">
-            <a
-              href="/inventory"
+            <Link
+              to="/inventory"
               className="group p-6 border rounded-xl hover:border-primary/50 transition-all duration-300 hover:shadow-lg hover:-translate-y-1"
             >
               <div className="space-y-3">
@@ -203,9 +204,9 @@ export default function Dashboard() {
                   Browse and manage all inventory items
                 </p>
               </div>
-            </a>
-            <a
-              href="/predictions"
+            </Link>
+            <Link
+              to="/predictions"
               className="group p-6 border rounded-xl hover:border-secondary/50 transition-all duration-300 hover:shadow-lg hover:-translate-y-1"
             >
               <div className="space-y-3">
@@ -217,9 +218,9 @@ export default function Dashboard() {
                   AI-powered demand forecasting
                 </p>
               </div>
-            </a>
-            <a
-              href="/inventory"
+            </Link>
+            <Link
+              to="/alerts"
               className="group p-6 border rounded-xl hover:border-warning/50 transition-all duration-300 hover:shadow-lg hover:-translate-y-1"
             >
               <div className="space-y-3">
@@ -231,7 +232,7 @@ export default function Dashboard() {
                   Items requiring immediate attention
                 </p>
               </div>
-            </a>
+            </Link>
           </div>
         </CardContent>
       </Card>
