@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  frontend:
+    name: Frontend (typecheck, lint, test, build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit -p tsconfig.app.json
+      - name: Lint
+        run: npm run lint
+      - name: Unit tests
+        run: npm test
+      - name: Build
+        run: npm run build
+
+  ml:
+    name: ML pipeline tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r ml/requirements.txt
+      - name: Run ML pipeline tests (no-leakage / reproducibility checks)
+        run: python3 -m pytest ml/ -v
+
+  prediction-api:
+    name: Prediction API smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r services/prediction-api/requirements.txt
+      - name: Import app and run a real prediction
+        working-directory: services/prediction-api
+        run: |
+          python3 -c "
+          from app.model import DemandModel
+          from app.schemas import PredictionRequest
+          m = DemandModel()
+          req = PredictionRequest(
+              current_stock=100, min_required=50, max_capacity=500, unit_cost=10,
+              avg_usage_per_day=5, restock_lead_time=7, item_type='Equipment',
+              item_name='Ventilator', history=[]
+          )
+          result = m.predict(req)
+          assert 'estimated_demand' in result
+          print('OK:', result)
+          "

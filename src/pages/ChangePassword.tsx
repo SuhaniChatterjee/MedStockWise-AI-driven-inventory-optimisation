@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import PasswordInput from "@/components/auth/PasswordInput";
 import { passwordSchema, validatePasswordMatch, hashPassword } from "@/lib/passwordValidation";
 import { ArrowLeft } from "lucide-react";
+import { ZodError } from "zod";
 
 export default function ChangePassword() {
   const [currentPassword, setCurrentPassword] = useState("");
@@ -26,8 +27,8 @@ export default function ChangePassword() {
 
     try {
       passwordSchema.parse(newPassword);
-    } catch (err: any) {
-      newErrors.new = err.errors[0]?.message || "Invalid password";
+    } catch (err) {
+      newErrors.new = err instanceof ZodError ? err.issues[0]?.message : "Invalid password";
     }
 
     if (!validatePasswordMatch(newPassword, confirmPassword)) {

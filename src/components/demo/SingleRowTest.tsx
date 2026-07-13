@@ -10,13 +10,21 @@ import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 
+interface SingleRowPredictionResult {
+  estimated_demand: number;
+  inventory_shortfall: number;
+  replenishment_needs: number;
+  feature_contributions: Record<string, number>;
+  model_version?: string;
+}
+
 export function SingleRowTest() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<SingleRowPredictionResult | null>(null);
   const [formData, setFormData] = useState({
     item_name: "Surgical Gloves (Size M)",
-    item_type: "PPE",
+    item_type: "Consumable",
     current_stock: "450",
     min_required: "200",
     max_capacity: "1000",
@@ -53,10 +61,10 @@ export function SingleRowTest() {
         title: "Prediction Complete",
         description: "Single row prediction processed successfully",
       });
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "Prediction Failed",
-        description: error.message,
+        description: error instanceof Error ? error.message : "Unknown error",
         variant: "destructive",
       });
     } finally {
@@ -116,10 +124,8 @@ export function SingleRowTest() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="PPE">PPE</SelectItem>
-                    <SelectItem value="Medical Supplies">Medical Supplies</SelectItem>
-                    <SelectItem value="Pharmaceuticals">Pharmaceuticals</SelectItem>
                     <SelectItem value="Equipment">Equipment</SelectItem>
+                    <SelectItem value="Consumable">Consumable</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

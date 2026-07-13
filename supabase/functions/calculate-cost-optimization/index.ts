@@ -1,11 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { z } from "https://esm.sh/zod@3.23.8";
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { createServiceRoleClient, requireUser, userHasAnyRole } from "../_shared/auth.ts";
+import { parseOrError, uuidSchema } from "../_shared/validation.ts";
 
-interface EOQInput {
-  item_id?: string;
-  run_all?: boolean;
-}
+const eoqInputSchema = z.object({
+  item_id: uuidSchema.optional(),
+  run_all: z.boolean().optional(),
+});
 
 interface InventoryItem {
   id: string;
@@ -61,7 +63,11 @@ serve(async (req) => {
       return jsonResponse({ error: "Only admins or inventory managers can run cost optimization" }, 403);
     }
 
-    const { item_id, run_all }: EOQInput = await req.json();
+    const parsed = parseOrError(eoqInputSchema, await req.json());
+    if (!parsed.success) {
+      return jsonResponse({ error: `Invalid request: ${parsed.message}` }, 400);
+    }
+    const { item_id, run_all } = parsed.data;
 
     // Get inventory items
     let query = supabase.from('inventory_items').select('*');

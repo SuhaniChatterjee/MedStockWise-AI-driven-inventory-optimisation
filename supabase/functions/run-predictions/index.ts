@@ -1,25 +1,17 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.74.0";
+import { z } from "https://esm.sh/zod@3.23.8";
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { createServiceRoleClient, requireUser, userHasAnyRole } from "../_shared/auth.ts";
+import { itemLikeSchema, parseOrError, uuidSchema } from "../_shared/validation.ts";
 
-interface PredictionInput {
-  item_id?: string;
-  run_all?: boolean;
-  single_prediction?: ItemLike;
-}
+const predictionInputSchema = z.object({
+  item_id: uuidSchema.optional(),
+  run_all: z.boolean().optional(),
+  single_prediction: itemLikeSchema.optional(),
+});
 
-interface ItemLike {
-  item_name: string;
-  item_type: string;
-  current_stock: number;
-  min_required: number;
-  max_capacity: number;
-  avg_usage_per_day: number;
-  restock_lead_time: number;
-  unit_cost: number;
-  vendor_name?: string;
-}
+type ItemLike = z.infer<typeof itemLikeSchema>;
 
 interface InventoryItem extends ItemLike {
   id: string;
@@ -143,7 +135,11 @@ serve(async (req) => {
     const supabase = createServiceRoleClient();
     const user = await requireUser(supabase, req);
 
-    const { item_id, run_all, single_prediction }: PredictionInput = await req.json();
+    const parsed = parseOrError(predictionInputSchema, await req.json());
+    if (!parsed.success) {
+      return jsonResponse({ error: `Invalid request: ${parsed.message}` }, 400);
+    }
+    const { item_id, run_all, single_prediction } = parsed.data;
 
     // Persisting predictions (run_all / item_id) is an inventory_manager+
     // action; the stateless single_prediction demo calculator stays open

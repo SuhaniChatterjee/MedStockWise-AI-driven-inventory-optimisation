@@ -1,7 +1,9 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.74.0";
+import { z } from "https://esm.sh/zod@3.23.8";
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { createServiceRoleClient } from "../_shared/auth.ts";
+import { parseOrError } from "../_shared/validation.ts";
 
 // Replaces the old client-trusted "check-rate-limit" function. That design
 // took a client-reported `success` boolean at face value, which meant anyone
@@ -13,10 +15,13 @@ import { createServiceRoleClient } from "../_shared/auth.ts";
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_WINDOW_MINUTES = 15;
 
-interface SignInRequest {
-  email: string;
-  password: string;
-}
+// Deliberately not the full passwordSchema policy (min length/character
+// classes) -- this endpoint authenticates existing users, some of whom may
+// predate the current password policy. Just needs to be non-empty.
+const signInRequestSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+});
 
 serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
@@ -24,11 +29,11 @@ serve(async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { email, password }: SignInRequest = await req.json();
-
-    if (!email || !password) {
-      return jsonResponse({ error: "Email and password are required" }, 400);
+    const parsed = parseOrError(signInRequestSchema, await req.json());
+    if (!parsed.success) {
+      return jsonResponse({ error: `Invalid request: ${parsed.message}` }, 400);
     }
+    const { email, password } = parsed.data;
 
     const identifier = email.trim().toLowerCase();
     const serviceClient = createServiceRoleClient();

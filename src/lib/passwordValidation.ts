@@ -12,7 +12,7 @@ export const passwordSchema = z
   .refine((val) => /[A-Z]/.test(val), 'Must include at least one uppercase letter')
   .refine((val) => /[a-z]/.test(val), 'Must include at least one lowercase letter')
   .refine((val) => /\d/.test(val), 'Must include at least one digit')
-  .refine((val) => /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(val), 'Must include at least one special character')
+  .refine((val) => /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(val), 'Must include at least one special character')
   .refine(
     (val) => !COMMON_PASSWORDS.includes(val.toLowerCase()),
     'Password is too common. Choose a unique password'
@@ -46,7 +46,7 @@ export function calculatePasswordStrength(password: string): PasswordStrength {
   const hasUpper = /[A-Z]/.test(password);
   const hasLower = /[a-z]/.test(password);
   const hasDigit = /\d/.test(password);
-  const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
+  const hasSpecial = /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password);
 
   if (hasUpper) score += 10;
   else feedback.push('Add uppercase letters');

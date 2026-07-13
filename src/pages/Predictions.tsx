@@ -16,9 +16,10 @@ import { Progress } from "@/components/ui/progress";
 
 interface ModelInfo {
   model_version: string;
+  model_type: string;
   mae: number;
   training_date: string;
-  is_active: boolean;
+  is_active: boolean | null;
 }
 
 interface Prediction {
@@ -29,11 +30,16 @@ interface Prediction {
   item_name?: string;
 }
 
+interface InventoryItemOption {
+  id: string;
+  item_name: string;
+}
+
 export default function Predictions() {
   const [loading, setLoading] = useState(false);
   const [runAll, setRunAll] = useState(true);
   const [selectedItem, setSelectedItem] = useState<string>("");
-  const [items, setItems] = useState<any[]>([]);
+  const [items, setItems] = useState<InventoryItemOption[]>([]);
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [modelInfo, setModelInfo] = useState<ModelInfo | null>(null);
   const { toast } = useToast();
@@ -74,13 +80,16 @@ export default function Predictions() {
       .limit(10);
     
     if (data) {
-      const formattedPredictions = data.map(p => ({
-        item_id: p.item_id,
-        estimated_demand: p.estimated_demand,
-        inventory_shortfall: p.inventory_shortfall,
-        replenishment_needs: p.replenishment_needs,
-        item_name: (p.inventory_items as any)?.item_name,
-      }));
+      const formattedPredictions = data.map((p) => {
+        const joinedItem = p.inventory_items as { item_name: string } | null;
+        return {
+          item_id: p.item_id,
+          estimated_demand: p.estimated_demand,
+          inventory_shortfall: p.inventory_shortfall,
+          replenishment_needs: p.replenishment_needs,
+          item_name: joinedItem?.item_name,
+        };
+      });
       setPredictions(formattedPredictions);
     }
   };
@@ -103,10 +112,10 @@ export default function Predictions() {
       });
 
       fetchRecentPredictions();
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "Prediction Failed",
-        description: error.message || "Failed to run predictions",
+        description: error instanceof Error ? error.message : "Failed to run predictions",
         variant: "destructive",
       });
     } finally {
@@ -133,7 +142,7 @@ export default function Predictions() {
                   Active Model: {modelInfo.model_version}
                 </CardTitle>
                 <CardDescription>
-                  GradientBoosting Regressor • MAE: {modelInfo.mae.toFixed(2)}
+                  {modelInfo.model_type} • MAE: {modelInfo.mae.toFixed(2)}
                 </CardDescription>
               </div>
               <Badge variant="outline" className="bg-success/10 text-success">

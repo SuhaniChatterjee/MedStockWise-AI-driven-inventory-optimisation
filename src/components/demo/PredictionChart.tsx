@@ -1,16 +1,21 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { DemoResultRow } from "./DemoDataTable";
 
 interface PredictionChartProps {
-  data: any[];
+  data: DemoResultRow[];
 }
 
 export function PredictionChart({ data }: PredictionChartProps) {
-  const chartData = data.slice(0, 10).map((item, idx) => ({
-    name: item.inventory_items?.item_name?.substring(0, 15) || `Item ${idx + 1}`,
-    predicted: item.predicted_demand || 0,
-    actual: item.feature_values?.actual_usage || item.predicted_demand * 0.9,
-  }));
+  const chartData = data.slice(0, 10).map((item, idx) => {
+    const predicted = item.predicted_demand || 0;
+    const actualUsage = item.feature_values?.actual_usage;
+    return {
+      name: item.inventory_items?.item_name?.substring(0, 15) || `Item ${idx + 1}`,
+      predicted,
+      actual: typeof actualUsage === "number" ? actualUsage : predicted * 0.9,
+    };
+  });
 
   return (
     <Card>

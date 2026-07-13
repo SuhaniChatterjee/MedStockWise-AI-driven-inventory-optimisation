@@ -20,15 +20,32 @@ const REQUIRED_COLUMNS = [
   "unit_cost"
 ];
 
+interface CSVValidationResult {
+  totalRows: number;
+  missingColumns: string[];
+  headers: string[];
+  preview: string[][];
+  hasIssues: boolean;
+}
+
+export interface CSVPredictionResult {
+  item_id: string;
+  predicted_demand: number;
+  confidence_score: number;
+  feature_values: Record<string, string>;
+  feature_contributions: Record<string, number>;
+  inventory_items: { item_name: string; item_type: string };
+}
+
 interface CSVUploadWizardProps {
-  onPredictionsComplete?: (results: any[]) => void;
+  onPredictionsComplete?: (results: CSVPredictionResult[]) => void;
 }
 
 export function CSVUploadWizard({ onPredictionsComplete }: CSVUploadWizardProps) {
   const { toast } = useToast();
   const [file, setFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [validation, setValidation] = useState<any>(null);
+  const [validation, setValidation] = useState<CSVValidationResult | null>(null);
   const [columnMapping, setColumnMapping] = useState<Record<string, string>>({});
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -82,7 +99,7 @@ export function CSVUploadWizard({ onPredictionsComplete }: CSVUploadWizardProps)
   };
 
   const handleProcessFile = async () => {
-    if (!file || validation?.hasIssues) {
+    if (!file || !validation || validation.hasIssues) {
       toast({
         title: "Cannot Process",
         description: "Please fix validation issues first",
@@ -97,15 +114,15 @@ export function CSVUploadWizard({ onPredictionsComplete }: CSVUploadWizardProps)
       const text = await file.text();
       const rows = text.split('\n').filter(row => row.trim()).slice(1); // Skip header
       
-      const predictions = [];
+      const predictions: CSVPredictionResult[] = [];
       const total = rows.length;
-      
+
       for (let i = 0; i < rows.length; i++) {
         const cells = rows[i].split(',').map(c => c.trim());
         const headers = validation.headers;
-        
+
         // Map row data to required fields
-        const rowData: any = {};
+        const rowData: Record<string, string> = {};
         headers.forEach((header: string, idx: number) => {
           const normalizedHeader = header.toLowerCase().replace(/[_\s]/g, '');
           REQUIRED_COLUMNS.forEach(reqCol => {
@@ -165,10 +182,10 @@ export function CSVUploadWizard({ onPredictionsComplete }: CSVUploadWizardProps)
         setFile(null);
         setValidation(null);
       }, 2000);
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "Processing Failed",
-        description: error.message,
+        description: error instanceof Error ? error.message : "Unknown error",
         variant: "destructive",
       });
       setUploadProgress(0);

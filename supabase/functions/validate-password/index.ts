@@ -1,10 +1,15 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { z } from "https://esm.sh/zod@3.23.8";
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { createServiceRoleClient, requireUser } from "../_shared/auth.ts";
+import { parseOrError } from "../_shared/validation.ts";
 
-interface ValidatePasswordRequest {
-  newPasswordHash: string;
-}
+// SHA-256 hex digest, as produced by hashPassword() in
+// src/lib/passwordValidation.ts -- reject anything else rather than storing
+// arbitrary strings in password_history.
+const validatePasswordRequestSchema = z.object({
+  newPasswordHash: z.string().regex(/^[0-9a-f]{64}$/, "must be a SHA-256 hex digest"),
+});
 
 interface ValidatePasswordResponse {
   valid: boolean;
@@ -27,11 +32,11 @@ serve(async (req: Request): Promise<Response> => {
     const user = await requireUser(supabase, req);
     const userId = user.id;
 
-    const { newPasswordHash }: ValidatePasswordRequest = await req.json();
-
-    if (!newPasswordHash) {
-      return jsonResponse({ error: 'newPasswordHash is required' }, 400);
+    const parsed = parseOrError(validatePasswordRequestSchema, await req.json());
+    if (!parsed.success) {
+      return jsonResponse({ error: `Invalid request: ${parsed.message}` }, 400);
     }
+    const { newPasswordHash } = parsed.data;
 
     // Get password history
     const { data: history, error } = await supabase
