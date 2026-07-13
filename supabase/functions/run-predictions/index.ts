@@ -4,6 +4,7 @@ import { z } from "https://esm.sh/zod@3.23.8";
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { createServiceRoleClient, requireUser, userHasAnyRole } from "../_shared/auth.ts";
 import { itemLikeSchema, parseOrError, uuidSchema } from "../_shared/validation.ts";
+import { sendAlertEmails } from "../_shared/email.ts";
 
 const predictionInputSchema = z.object({
   item_id: uuidSchema.optional(),
@@ -277,6 +278,7 @@ serve(async (req) => {
     // Batch insert alerts
     if (alerts.length > 0) {
       await supabase.from('alerts_history').insert(alerts);
+      await sendAlertEmails(supabase, alerts);
     }
 
     console.log(`Generated ${predictions.length} predictions and ${alerts.length} alerts`);
