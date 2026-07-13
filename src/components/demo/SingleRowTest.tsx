@@ -242,22 +242,33 @@ export function SingleRowTest() {
                 Top Contributing Features
               </h4>
               <div className="space-y-2">
-                {result.feature_contributions && Object.entries(result.feature_contributions)
-                  .map(([name, value]) => ({
-                    name: name.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
-                    contribution: (value as number) * 100
-                  }))
-                  .sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution))
-                  .slice(0, 3)
-                  .map((feature, idx) => (
-                    <div key={idx} className="space-y-1">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="font-medium">{feature.name}</span>
-                        <Badge variant="outline">{feature.contribution.toFixed(2)}%</Badge>
+                {result.feature_contributions && (() => {
+                  const entries = Object.entries(result.feature_contributions) as [string, number][];
+                  // Feature contributions come back in raw target units (LightGBM
+                  // per-prediction contributions), not pre-normalized fractions --
+                  // show each feature's share of this prediction's total absolute
+                  // contribution rather than assuming a 0-1 scale.
+                  const totalAbs = entries.reduce((sum, [, v]) => sum + Math.abs(v), 0) || 1;
+                  return entries
+                    .map(([name, value]) => ({
+                      name: name.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
+                      rawValue: value,
+                      relativePct: (Math.abs(value) / totalAbs) * 100,
+                    }))
+                    .sort((a, b) => b.relativePct - a.relativePct)
+                    .slice(0, 3)
+                    .map((feature, idx) => (
+                      <div key={idx} className="space-y-1">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="font-medium">{feature.name}</span>
+                          <Badge variant="outline">
+                            {feature.rawValue >= 0 ? '+' : ''}{feature.rawValue.toFixed(2)} ({feature.relativePct.toFixed(1)}%)
+                          </Badge>
+                        </div>
+                        <Progress value={feature.relativePct} className="h-2" />
                       </div>
-                      <Progress value={Math.abs(feature.contribution)} className="h-2" />
-                    </div>
-                  ))}
+                    ));
+                })()}
               </div>
             </div>
 

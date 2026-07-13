@@ -1,0 +1,42 @@
+{
+  "model_type": "LightGBM",
+  "model_format": "lightgbm_text",
+  "feature_columns": [
+    "Current_Stock",
+    "Min_Required",
+    "Max_Capacity",
+    "Unit_Cost",
+    "Restock_Lead_Time",
+    "Usage_Lag_1",
+    "Usage_Lag_3",
+    "Usage_Lag_7",
+    "Usage_Rolling_7",
+    "Days_Since_Prev_Obs",
+    "Day_Of_Week",
+    "Month",
+    "Is_Weekend",
+    "Quarter",
+    "Item_Name_Gloves",
+    "Item_Name_IV_Drip",
+    "Item_Name_Surgical_Mask",
+    "Item_Name_Ventilator",
+    "Item_Name_X_ray_Machine",
+    "Item_Type_Consumable",
+    "Item_Type_Equipment"
+  ],
+  "categorical_source_columns": {
+    "Item_Name": [
+      "Gloves",
+      "IV Drip",
+      "Surgical Mask",
+      "Ventilator",
+      "X-ray Machine"
+    ],
+    "Item_Type": [
+      "Consumable",
+      "Equipment"
+    ]
+  },
+  "target": "Avg_Usage_Per_Day",
+  "risk_threshold": 1.0
+}

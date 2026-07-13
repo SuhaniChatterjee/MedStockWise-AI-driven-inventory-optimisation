@@ -138,7 +138,7 @@ export function CSVUploadWizard({ onPredictionsComplete }: CSVUploadWizardProps)
           predictions.push({
             item_id: `csv-${i}`,
             predicted_demand: data.estimated_demand,
-            confidence_score: 0.85,
+            confidence_score: data.confidence ?? 0,
             feature_values: rowData,
             feature_contributions: data.feature_contributions,
             inventory_items: {
