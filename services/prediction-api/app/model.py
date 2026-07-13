@@ -9,7 +9,13 @@ import pandas as pd
 
 from .schemas import PredictionRequest
 
-MODEL_DIR = Path(os.environ.get("MODEL_DIR", Path(__file__).resolve().parents[3] / "ml" / "models"))
+# os.environ.get()'s default argument is evaluated eagerly regardless of
+# whether the env var is set, so the parents[3] fallback (correct for local
+# dev running from services/prediction-api/) must not be computed
+# unconditionally -- it doesn't resolve in the Docker image's flatter
+# /app/app/model.py layout, where MODEL_DIR is always explicitly set anyway.
+_model_dir_env = os.environ.get("MODEL_DIR")
+MODEL_DIR = Path(_model_dir_env) if _model_dir_env else Path(__file__).resolve().parents[3] / "ml" / "models"
 
 
 class DemandModel:
