@@ -16,9 +16,13 @@ The app originally ran on a Lovable-managed Supabase backend ("Lovable Cloud"), 
 - **First admin account**: created (signed up normally through the app, defaulted to `nurse`) and promoted to `admin` via direct SQL through the Management API's query endpoint.
 - **Prediction API**: deployed to Render (`https://medstockwise-prediction-api.onrender.com`, free tier -- spins down after 15 min idle, ~30-60s cold start on the next request), `PREDICTION_API_URL`/`PREDICTION_API_KEY` set as Supabase secrets. `/health` and `/predict` smoke-tested directly and return correct results. Two real bugs surfaced and fixed during this deploy (see commit history): `python:3.11-slim` is missing `libgomp1`, which LightGBM's compiled binary needs at import time; and `MODEL_DIR`'s fallback path expression was being evaluated eagerly by `os.environ.get()` even when the env var was already set, crashing on the Docker image's flatter directory layout.
 
+- **Email alerts**: `RESEND_API_KEY` set as a Supabase secret; `run-predictions` now emails admins/inventory_managers when it generates a `low_stock`/`critical_stock` alert (both already had `email` enabled in `alert_configurations.notification_channels` by default). Verified the Resend integration itself works via a direct API call. Deliberately not wired into `seed-sample-data` -- those alerts are synthetic demo data, and emailing real people about fake data would be actively misleading. Resend's sandbox mode (no verified sending domain) can currently only deliver to the account owner's own email; verify a domain in Resend's dashboard to notify other staff.
+
 ## What's still needed
 
-Nothing blocking -- the full stack (Supabase backend, prediction API, frontend) is deployed and wired together. Worth doing when convenient: click "Run Predictions" in the live app and confirm the response's `model_source` is `"ml_service"` (not `"fallback_formula"`), as an end-to-end check of the real credential path (this wasn't tested with a real logged-in user session, only with `curl` directly against the prediction API and Supabase's own auth endpoints separately).
+Nothing blocking -- the full stack (Supabase backend, prediction API, frontend, email alerts) is deployed and wired together. Worth doing when convenient:
+- Click "Run Predictions" in the live app and confirm the response's `model_source` is `"ml_service"` (not `"fallback_formula"`) -- this wasn't tested with a real logged-in user session, only with `curl` directly against the prediction API and Supabase's own auth endpoints separately.
+- No current inventory item is actually low enough to trigger a real `low_stock`/`critical_stock` alert (closest is Oxygen Tanks at 90% of minimum; alerts fire below 20%). Edit an item's stock down via the Inventory page and run predictions to see the full alert + email flow live.
 
 ## 1. Supabase (reference -- already done for the new project above)
 
@@ -40,6 +44,9 @@ If migrating to yet another project in the future, repeat this against the new `
 ```bash
 supabase secrets set PREDICTION_API_URL=https://medstockwise-prediction-api.onrender.com
 supabase secrets set PREDICTION_API_KEY=<the key generated when deploying the prediction API>
+supabase secrets set RESEND_API_KEY=<your Resend API key>
+# Optional, defaults to onboarding@resend.dev (Resend's shared sandbox sender):
+supabase secrets set ALERT_EMAIL_FROM="MedStock Wise <alerts@yourdomain.com>"
 ```
 
 `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are provided automatically to edge functions by Supabase; nothing to set for those.
@@ -81,4 +88,6 @@ Deployed via `vercel --prod`. Vercel's Git integration is connected to `SuhaniCh
 - [x] First admin account created and promoted via SQL
 - [x] Prediction API deployed to Render; `/health` and `/predict` smoke-tested directly
 - [x] `PREDICTION_API_URL`/`PREDICTION_API_KEY` secrets set on the Supabase project
+- [x] `RESEND_API_KEY` set on the Supabase project; Resend integration verified via direct API call
 - [ ] Confirm `model_source: "ml_service"` (not `"fallback_formula"`) via a real logged-in "Run Predictions" click in the live app
+- [ ] Trigger a real low-stock alert (edit an item's stock down) to see the email flow end-to-end
