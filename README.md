@@ -78,9 +78,11 @@ All of the above run in CI on every push/PR to `main` (`.github/workflows/ci.yml
 
 ## Deployment status
 
-- **Frontend**: deployable to Vercel (or any static host) via `npm run build`.
-- **Backend**: Supabase project with migrations + edge functions applied.
-- **Prediction API**: not deployed by default — `run-predictions` falls back to a simple formula until `services/prediction-api` is deployed and `PREDICTION_API_URL`/`PREDICTION_API_KEY` are set as Supabase secrets. See [docs/deployment.md](docs/deployment.md).
+- **Backend**: own, independently-controlled Supabase project (`umnvrftxfxaunofkwbgh`) — schema and all 5 edge functions applied and verified live.
+- **Frontend**: `.env` points at the new backend; still needs Vercel's environment variables updated to match and a redeploy (the currently-live `medstockwiseapp.vercel.app` still points at the old backend until then).
+- **Prediction API**: not deployed yet — `run-predictions` falls back to a simple formula until `services/prediction-api` is deployed and its URL/key are set as Supabase secrets.
+
+Full checklist and exact values in [docs/deployment.md](docs/deployment.md).
 
 ## Future scope
 

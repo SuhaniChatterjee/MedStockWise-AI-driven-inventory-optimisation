@@ -34,3 +34,7 @@ __pycache__/
 .venv/
 venv/
 .pytest_cache/
+
+# Supabase CLI local state
+supabase/.temp/
+supabase/.branches/

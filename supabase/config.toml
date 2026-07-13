@@ -1,4 +1,4 @@
-project_id = "pjpggqygulcymekiliab"
+project_id = "umnvrftxfxaunofkwbgh"
 
 [api]
 enabled = true
@@ -21,8 +21,7 @@ max_client_conn = 100
 
 [realtime]
 enabled = true
-ip_version = "ipv4"
-port = 54323
+ip_version = "IPv4"
 max_header_length = 4096
 
 [studio]
@@ -30,7 +29,7 @@ enabled = true
 port = 54324
 api_url = "http://127.0.0.1"
 
-[inbucket]
+[local_smtp]
 enabled = true
 port = 54325
 smtp_port = 54326
@@ -50,7 +49,6 @@ enable_anonymous_sign_ins = false
 
 [edge_runtime]
 enabled = true
-port = 54328
 policy = "per_worker"
 inspector_port = 8083
 

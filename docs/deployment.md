@@ -1,24 +1,31 @@
 # Deployment
 
-This repo was consolidated and hardened without direct access to the live Supabase project, Vercel project, or any cloud account (no `supabase`/`vercel`/`gh` CLI, no credentials, in the environment this work was done in). Everything below is written, tested locally, and CI-verified, but **has not been applied to a live environment** -- these steps still need to be run by someone with access.
+## Current status (as of this consolidation)
 
-## 1. Supabase
+The app originally ran on a Lovable-managed Supabase backend ("Lovable Cloud"), which wasn't independently accessible outside Lovable's own dashboard. To get full direct control, we provisioned a **new, independently-owned Supabase project** and cut over to it:
 
-### Apply the schema
+- **New project**: `umnvrftxfxaunofkwbgh` (region `ap-south-1`), owned directly by the project owner's own Supabase account -- no platform in the middle.
+- **Schema**: all 6 migrations applied (`supabase db push`), verified via `supabase migration list`.
+- **Edge functions**: all 5 deployed and `ACTIVE` (`run-predictions`, `calculate-cost-optimization`, `seed-sample-data`, `validate-password`, `secure-sign-in`).
+- **Frontend `.env`**: updated to point at the new project.
+- Smoke-tested `secure-sign-in` live against the new project (correctly rejects bad credentials and tracks remaining attempts) -- confirms migrations + RLS + functions are wired together correctly end to end.
+- The old Lovable-managed project is now unused by this repo going forward; nothing was deleted there, it's just no longer referenced.
+
+## What's still needed (can't be done without dashboard/account access this session didn't have)
+
+1. **Update Vercel's environment variables** to the new project's values (below) and redeploy -- the currently-live `medstockwiseapp.vercel.app` still points at the old Lovable-managed project until this happens.
+2. **Create the first admin account**: sign up a normal account through the app (`/auth`), which defaults to the `nurse` role, then promote it via SQL (Supabase Dashboard -> SQL Editor, now directly accessible on the new project):
+   ```sql
+   update public.user_roles set role = 'admin' where user_id = '<your-user-id-from-auth.users>';
+   ```
+3. **Deploy the prediction API** (`services/prediction-api/`) and set its URL/key as secrets (below) -- until then, predictions use the formula fallback, clearly labeled `model_source: "fallback_formula"` in responses.
+
+## 1. Supabase (reference -- already done for the new project above)
 
 ```bash
-supabase login
-supabase link --project-ref <your-project-ref>
+supabase login --token <personal-access-token>
+supabase link --project-ref umnvrftxfxaunofkwbgh
 supabase db push   # applies everything in supabase/migrations/, in order
-```
-
-Migrations added/changed in this consolidation (in order, on top of whatever was already applied):
-- `20260713083903_security_hardening.sql` -- tightens RLS on `prediction_history`/`alerts_history`/`login_attempts`, adds audit-log triggers. See commit history for the specific vulnerabilities this closes.
-- `20260713090000_usage_observations.sql` -- new table for real per-item usage history (needed by the ML model's lag features).
-
-### Deploy the edge functions
-
-```bash
 supabase functions deploy run-predictions
 supabase functions deploy calculate-cost-optimization
 supabase functions deploy seed-sample-data
@@ -26,9 +33,9 @@ supabase functions deploy validate-password
 supabase functions deploy secure-sign-in
 ```
 
-Note: `check-rate-limit` was **removed** (replaced by `secure-sign-in`) -- if it's still deployed from a previous version, delete it: `supabase functions delete check-rate-limit`.
+If migrating to yet another project in the future, repeat this against the new `--project-ref`.
 
-### Set secrets
+### Set secrets (still needed once the prediction API is deployed)
 
 ```bash
 supabase secrets set PREDICTION_API_URL=https://<your-deployed-prediction-api>
@@ -37,13 +44,9 @@ supabase secrets set PREDICTION_API_KEY=<same-value-used-when-deploying-the-pred
 
 `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are provided automatically to edge functions by Supabase; nothing to set for those.
 
-### Rotate the anon key
-
-`VITE_SUPABASE_PUBLISHABLE_KEY` (the anon key) was committed to git in this repo's history before this consolidation (see the `.env` untracking commit). The anon key is meant to be public (it's safe by design, gated by RLS), so this is lower severity than a service-role key leak, but if you want a clean rotation: Supabase Dashboard -> Project Settings -> API -> rotate the anon key, then update `.env` (see `.env.example`) and Vercel's environment variables.
-
 ## 2. Prediction API
 
-Not deployed by default -- see [services/prediction-api/README.md](../services/prediction-api/README.md) for the full Docker build/deploy steps. Any container host works (Render, Railway, Fly.io, a VM). Once deployed, set `PREDICTION_API_URL`/`PREDICTION_API_KEY` as Supabase secrets (above) -- until then, `run-predictions` transparently falls back to a formula-based estimate.
+Not deployed yet -- see [services/prediction-api/README.md](../services/prediction-api/README.md) for the full Docker build/deploy steps. Any container host works (Render, Railway, Fly.io, a VM). Once deployed, set the two secrets above -- until then, `run-predictions` transparently falls back to a formula-based estimate.
 
 Retraining: `python3 ml/train.py` regenerates `ml/models/`; rebuild and redeploy the prediction API afterward.
 
@@ -51,24 +54,25 @@ Retraining: `python3 ml/train.py` regenerates `ml/models/`; rebuild and redeploy
 
 Build command: `npm run build`. Output directory: `dist`. Framework preset: Vite.
 
-Required environment variables (Vercel Project Settings -> Environment Variables), same as `.env.example`:
+Required environment variables (Vercel Project Settings -> Environment Variables) -- **these need updating to the new project's values**:
 ```
-VITE_SUPABASE_PROJECT_ID
-VITE_SUPABASE_PUBLISHABLE_KEY
-VITE_SUPABASE_URL
+VITE_SUPABASE_PROJECT_ID=umnvrftxfxaunofkwbgh
+VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_OBLdIYT__sYdnoI_77EMOQ_kxweEO34
+VITE_SUPABASE_URL=https://umnvrftxfxaunofkwbgh.supabase.co
 ```
 
-If the Vercel project is connected to this GitHub repo, pushing to `main` triggers a deploy automatically. Otherwise: `vercel --prod` from the repo root (with the Vercel CLI installed and authenticated).
+If the Vercel project is connected to this GitHub repo, pushing to `main` triggers a deploy automatically (the env vars still need updating in Vercel's dashboard regardless). Otherwise: `vercel --prod` from the repo root.
 
 ## 4. CI
 
-`.github/workflows/ci.yml` runs on every push/PR to `main`: frontend typecheck/lint/test/build, ML pipeline pytest, and a prediction-api import smoke test. No deploy step is wired into CI -- deployment above is manual (Vercel's own GitHub integration handles the frontend deploy separately, as noted above).
+`.github/workflows/ci.yml` runs on every push/PR to `main`: frontend typecheck/lint/test/build, ML pipeline pytest, and a prediction-api import smoke test. No deploy step is wired into CI -- deployment above is manual.
 
-## Verification checklist after deploying
+## Verification checklist
 
-- [ ] `supabase db push` completed with no errors
-- [ ] All 5 edge functions listed above deploy successfully
-- [ ] `PREDICTION_API_URL`/`PREDICTION_API_KEY` secrets set, prediction API's `/health` returns 200
-- [ ] Sign up a test user, confirm role defaults to `nurse`, promote to `admin` via direct SQL (`insert into user_roles ...`) for the first admin
-- [ ] As admin, run "Seed Sample Data" (Admin page) and "Run Predictions" (Predictions page); confirm `model_source` in the response is `"ml_service"`, not `"fallback_formula"`, once the prediction API is deployed
-- [ ] Frontend builds and deploys on Vercel with no console errors on the `/auth` and dashboard routes
+- [x] `supabase db push` completed with no errors (new project)
+- [x] All 5 edge functions deployed and `ACTIVE` (new project)
+- [x] `secure-sign-in` smoke-tested live (rejects bad credentials correctly)
+- [ ] Vercel env vars updated to the new project + redeployed
+- [ ] First admin account created and promoted via SQL
+- [ ] `PREDICTION_API_URL`/`PREDICTION_API_KEY` secrets set once the prediction API is deployed; confirm `model_source: "ml_service"` (not `"fallback_formula"`) in a real prediction response
+- [ ] Frontend loads with no console errors against the new backend on `/auth` and the dashboard
