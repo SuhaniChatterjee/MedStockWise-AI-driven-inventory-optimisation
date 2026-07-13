@@ -84,3 +84,18 @@ export function calculatePasswordStrength(password: string): PasswordStrength {
 export function validatePasswordMatch(password: string, confirmPassword: string): boolean {
   return password === confirmPassword && password.length > 0;
 }
+
+/**
+ * Deterministic SHA-256 hash used only for password-reuse detection
+ * (password_history table). This is NOT the credential store -- Supabase
+ * Auth/GoTrue independently manages the real (salted, bcrypt) password
+ * hash used for authentication. A deterministic hash is required here so
+ * exact-match reuse comparisons are possible.
+ */
+export async function hashPassword(password: string): Promise<string> {
+  const encoded = new TextEncoder().encode(password);
+  const digest = await crypto.subtle.digest("SHA-256", encoded);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}

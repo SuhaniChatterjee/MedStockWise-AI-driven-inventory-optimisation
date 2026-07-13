@@ -1,13 +1,8 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
+import { createServiceRoleClient, requireUser } from "../_shared/auth.ts";
 
 interface ValidatePasswordRequest {
-  userId: string;
   newPasswordHash: string;
 }
 
@@ -24,18 +19,18 @@ serve(async (req: Request): Promise<Response> => {
   }
 
   try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    );
+    const supabase = createServiceRoleClient();
 
-    const { userId, newPasswordHash }: ValidatePasswordRequest = await req.json();
+    // userId is derived from the verified JWT, never trusted from the request
+    // body -- otherwise any caller could read/write another user's password
+    // history by passing an arbitrary userId.
+    const user = await requireUser(supabase, req);
+    const userId = user.id;
 
-    if (!userId || !newPasswordHash) {
-      return new Response(
-        JSON.stringify({ error: 'userId and newPasswordHash are required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    const { newPasswordHash }: ValidatePasswordRequest = await req.json();
+
+    if (!newPasswordHash) {
+      return jsonResponse({ error: 'newPasswordHash is required' }, 400);
     }
 
     // Get password history
@@ -48,10 +43,7 @@ serve(async (req: Request): Promise<Response> => {
 
     if (error) {
       console.error('Error fetching password history:', error);
-      return new Response(
-        JSON.stringify({ error: 'Failed to validate password' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({ error: 'Failed to validate password' }, 500);
     }
 
     // Check if password was used recently
@@ -63,10 +55,7 @@ serve(async (req: Request): Promise<Response> => {
         message: `This password was used recently. Please choose a different password.`,
       };
 
-      return new Response(
-        JSON.stringify(response),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse(response);
     }
 
     // Store new password hash
@@ -80,16 +69,12 @@ serve(async (req: Request): Promise<Response> => {
       message: 'Password is valid',
     };
 
-    return new Response(
-      JSON.stringify(response),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return jsonResponse(response);
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error in validate-password:', error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    const status = /unauthorized|missing authorization/i.test(message) ? 401 : 500;
+    return jsonResponse({ error: message }, status);
   }
 });

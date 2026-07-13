@@ -1,10 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.74.0";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
+import { createServiceRoleClient, requireUser, userHasAnyRole } from "../_shared/auth.ts";
 
 interface PredictionInput {
   item_id?: string;
@@ -71,24 +67,20 @@ serve(async (req) => {
   }
 
   try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-
-    const authHeader = req.headers.get('authorization');
-    if (!authHeader) {
-      throw new Error('Missing authorization header');
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    
-    if (authError || !user) {
-      throw new Error('Unauthorized');
-    }
+    const supabase = createServiceRoleClient();
+    const user = await requireUser(supabase, req);
 
     const { item_id, run_all, single_prediction }: PredictionInput = await req.json();
+
+    // Persisting predictions (run_all / item_id) is an inventory_manager+
+    // action; the stateless single_prediction demo calculator stays open
+    // to any authenticated user since it never writes to the database.
+    if (!single_prediction) {
+      const authorized = await userHasAnyRole(supabase, user.id, ["admin", "inventory_manager"]);
+      if (!authorized) {
+        return jsonResponse({ error: "Only admins or inventory managers can run predictions" }, 403);
+      }
+    }
 
     // Get active model version (get the most recent one if multiple exist)
     const { data: activeModels, error: modelError } = await supabase
@@ -111,17 +103,11 @@ serve(async (req) => {
         ...single_prediction,
       } as InventoryItem);
 
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          ...prediction,
-          model_version: activeModel.model_version,
-        }),
-        { 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 200,
-        }
-      );
+      return jsonResponse({
+        success: true,
+        ...prediction,
+        model_version: activeModel.model_version,
+      });
     }
 
     // Get inventory items
@@ -216,27 +202,16 @@ serve(async (req) => {
 
     console.log(`Generated ${predictions.length} predictions and ${alerts.length} alerts`);
 
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        predictions,
-        alerts_generated: alerts.length,
-        model_version: activeModel.model_version,
-      }),
-      { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      }
-    );
+    return jsonResponse({
+      success: true,
+      predictions,
+      alerts_generated: alerts.length,
+      model_version: activeModel.model_version,
+    });
   } catch (error) {
     console.error('Error in run-predictions:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-    return new Response(
-      JSON.stringify({ error: errorMessage }),
-      { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
-      }
-    );
+    const status = /unauthorized|missing authorization/i.test(errorMessage) ? 401 : 500;
+    return jsonResponse({ error: errorMessage }, status);
   }
 });

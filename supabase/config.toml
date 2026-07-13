@@ -61,4 +61,15 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.seed-sample-data]
-verify_jwt = false
+# Was `false` (fully public + used the service-role key -- anyone could call
+# this with no auth at all). Now requires a valid JWT; the function itself
+# additionally checks for admin/inventory_manager role and is idempotent.
+verify_jwt = true
+
+[functions.validate-password]
+verify_jwt = true
+
+[functions.secure-sign-in]
+# Called pre-login; the anon key still satisfies verify_jwt (it's a valid,
+# signed JWT), so this does not weaken the gateway-level check.
+verify_jwt = true

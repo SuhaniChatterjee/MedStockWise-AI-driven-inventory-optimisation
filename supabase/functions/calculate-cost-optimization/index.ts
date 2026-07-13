@@ -1,10 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.74.0";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
+import { createServiceRoleClient, requireUser, userHasAnyRole } from "../_shared/auth.ts";
 
 interface EOQInput {
   item_id?: string;
@@ -57,21 +53,12 @@ serve(async (req) => {
   }
 
   try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
+    const supabase = createServiceRoleClient();
+    const user = await requireUser(supabase, req);
 
-    const authHeader = req.headers.get('authorization');
-    if (!authHeader) {
-      throw new Error('Missing authorization header');
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    
-    if (authError || !user) {
-      throw new Error('Unauthorized');
+    const authorized = await userHasAnyRole(supabase, user.id, ["admin", "inventory_manager"]);
+    if (!authorized) {
+      return jsonResponse({ error: "Only admins or inventory managers can run cost optimization" }, 403);
     }
 
     const { item_id, run_all }: EOQInput = await req.json();
@@ -161,26 +148,15 @@ serve(async (req) => {
 
     console.log(`Generated ${optimizations.length} cost optimizations`);
 
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        optimizations,
-        total_items: optimizations.length,
-      }),
-      { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      }
-    );
+    return jsonResponse({
+      success: true,
+      optimizations,
+      total_items: optimizations.length,
+    });
   } catch (error) {
     console.error('Error in calculate-cost-optimization:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-    return new Response(
-      JSON.stringify({ error: errorMessage }),
-      { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
-      }
-    );
+    const status = /unauthorized|missing authorization/i.test(errorMessage) ? 401 : 500;
+    return jsonResponse({ error: errorMessage }, status);
   }
 });

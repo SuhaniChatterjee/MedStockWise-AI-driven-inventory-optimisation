@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import PasswordInput from "@/components/auth/PasswordInput";
-import { passwordSchema, validatePasswordMatch } from "@/lib/passwordValidation";
+import { passwordSchema, validatePasswordMatch, hashPassword } from "@/lib/passwordValidation";
 import { ArrowLeft } from "lucide-react";
 
 export default function ChangePassword() {
@@ -73,8 +73,29 @@ export default function ChangePassword() {
       return;
     }
 
-    // Check password history via edge function (if implemented)
-    // For now, we'll just update the password
+    // Check password history before committing the change.
+    const newPasswordHash = await hashPassword(newPassword);
+    const { data: validation, error: validateError } = await supabase.functions.invoke(
+      "validate-password",
+      { body: { newPasswordHash } }
+    );
+
+    if (validateError) {
+      toast({
+        title: "Error",
+        description: "Could not validate password history. Please try again.",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      return;
+    }
+
+    if (!validation?.valid) {
+      setErrors({ new: validation?.message ?? "This password was used recently" });
+      setIsLoading(false);
+      return;
+    }
+
     const { error: updateError } = await supabase.auth.updateUser({
       password: newPassword,
     });

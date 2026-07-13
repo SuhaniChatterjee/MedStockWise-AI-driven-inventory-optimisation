@@ -6,7 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Activity } from "lucide-react";
 import PasswordInput from "@/components/auth/PasswordInput";
-import { passwordSchema, validatePasswordMatch } from "@/lib/passwordValidation";
+import { passwordSchema, validatePasswordMatch, hashPassword } from "@/lib/passwordValidation";
 
 export default function ResetPassword() {
   const [password, setPassword] = useState("");
@@ -53,6 +53,28 @@ export default function ResetPassword() {
     if (!validateForm()) return;
 
     setIsLoading(true);
+
+    const newPasswordHash = await hashPassword(password);
+    const { data: validation, error: validateError } = await supabase.functions.invoke(
+      "validate-password",
+      { body: { newPasswordHash } }
+    );
+
+    if (validateError) {
+      toast({
+        title: "Error",
+        description: "Could not validate password history. Please try again.",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      return;
+    }
+
+    if (!validation?.valid) {
+      setErrors({ password: validation?.message ?? "This password was used recently" });
+      setIsLoading(false);
+      return;
+    }
 
     const { error } = await supabase.auth.updateUser({
       password: password,

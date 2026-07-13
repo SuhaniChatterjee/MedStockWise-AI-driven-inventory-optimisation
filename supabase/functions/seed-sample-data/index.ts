@@ -1,10 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.47.10";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
+import { createServiceRoleClient, requireUser, userHasAnyRole } from "../_shared/auth.ts";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -12,9 +8,33 @@ serve(async (req) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabase = createServiceRoleClient();
+
+    // Only admins/inventory managers may (re-)seed the database -- this
+    // writes with the service role key, which bypasses RLS entirely.
+    const user = await requireUser(supabase, req);
+    const authorized = await userHasAnyRole(supabase, user.id, ["admin", "inventory_manager"]);
+    if (!authorized) {
+      return jsonResponse({ error: "Only admins or inventory managers can seed data" }, 403);
+    }
+
+    // Idempotency: skip if the database already has inventory data, so this
+    // can't be called repeatedly to keep duplicating rows.
+    const { count, error: countError } = await supabase
+      .from("inventory_items")
+      .select("id", { count: "exact", head: true });
+
+    if (countError) {
+      throw countError;
+    }
+
+    if (count && count > 0) {
+      return jsonResponse({
+        success: true,
+        message: "Database already has inventory data; skipped seeding",
+        stats: { inventory_items: 0, predictions: 0, alerts: 0 },
+      });
+    }
 
     console.log("Starting data seeding...");
 
@@ -264,23 +284,21 @@ serve(async (req) => {
       console.log(`Inserted ${alerts.length} alerts`);
     }
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: "Sample data seeded successfully",
-        stats: {
-          inventory_items: insertedItems?.length || 0,
-          predictions: insertedItems?.length || 0,
-          alerts: lowStockItems.length
-        }
-      }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return jsonResponse({
+      success: true,
+      message: "Sample data seeded successfully",
+      stats: {
+        inventory_items: insertedItems?.length || 0,
+        predictions: insertedItems?.length || 0,
+        alerts: lowStockItems.length
+      }
+    });
   } catch (error) {
     console.error("Error seeding data:", error);
-    return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    const status = error instanceof Error && /unauthorized|missing authorization/i.test(error.message) ? 401 : 500;
+    return jsonResponse(
+      { error: error instanceof Error ? error.message : "Unknown error" },
+      status
     );
   }
 });
