@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,7 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, AlertTriangle } from "lucide-react";
+import { Plus, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
@@ -46,53 +48,66 @@ interface InventoryItem {
   vendor_name: string | null;
 }
 
+const PAGE_SIZE = 10;
+
+const EMPTY_FORM = {
+  item_name: "",
+  item_type: "Equipment",
+  current_stock: 0,
+  min_required: 0,
+  max_capacity: 0,
+  unit_cost: 0,
+  avg_usage_per_day: 0,
+  restock_lead_time: 0,
+  vendor_name: "",
+};
+
 export default function Inventory() {
   const { isManager } = useAuth();
   const { toast } = useToast();
-  const [items, setItems] = useState<InventoryItem[]>([]);
-  const [filteredItems, setFilteredItems] = useState<InventoryItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+
+  const [page, setPage] = useState(0);
   const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearch = useDebouncedValue(searchTerm, 300);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [formData, setFormData] = useState({
-    item_name: "",
-    item_type: "Equipment",
-    current_stock: 0,
-    min_required: 0,
-    max_capacity: 0,
-    unit_cost: 0,
-    avg_usage_per_day: 0,
-    restock_lead_time: 0,
-    vendor_name: "",
+  const [formData, setFormData] = useState(EMPTY_FORM);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Server-side pagination + search (via .range()/.ilike()) rather than
+  // fetching every row and filtering client-side, so this doesn't degrade
+  // as the inventory grows.
+  const { data, isLoading, isFetching, error } = useQuery({
+    queryKey: ["inventory-items", page, debouncedSearch],
+    queryFn: async () => {
+      const from = page * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+
+      let query = supabase
+        .from("inventory_items")
+        .select("*", { count: "exact" })
+        .order("item_name")
+        .range(from, to);
+
+      if (debouncedSearch.trim()) {
+        query = query.ilike("item_name", `%${debouncedSearch.trim()}%`);
+      }
+
+      const { data, error, count } = await query;
+      if (error) throw error;
+      return { items: (data ?? []) as InventoryItem[], total: count ?? 0 };
+    },
+    placeholderData: (previous) => previous,
   });
 
-  useEffect(() => {
-    fetchItems();
-  }, []);
-
-  useEffect(() => {
-    const filtered = items.filter((item) =>
-      item.item_name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-    setFilteredItems(filtered);
-  }, [searchTerm, items]);
-
-  const fetchItems = async () => {
-    const { data, error } = await supabase
-      .from("inventory_items")
-      .select("*")
-      .order("item_name");
-
-    if (!error && data) {
-      setItems(data);
-      setFilteredItems(data);
-    }
-    setLoading(false);
-  };
+  const items = data?.items ?? [];
+  const total = data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+    setSubmitting(true);
+
     const { error } = await supabase.from("inventory_items").insert([formData]);
 
     if (error) {
@@ -107,19 +122,10 @@ export default function Inventory() {
         description: "Item added successfully",
       });
       setIsDialogOpen(false);
-      fetchItems();
-      setFormData({
-        item_name: "",
-        item_type: "Equipment",
-        current_stock: 0,
-        min_required: 0,
-        max_capacity: 0,
-        unit_cost: 0,
-        avg_usage_per_day: 0,
-        restock_lead_time: 0,
-        vendor_name: "",
-      });
+      setFormData(EMPTY_FORM);
+      queryClient.invalidateQueries({ queryKey: ["inventory-items"] });
     }
+    setSubmitting(false);
   };
 
   const getStockStatus = (item: InventoryItem) => {
@@ -132,7 +138,7 @@ export default function Inventory() {
     return <Badge className="bg-success text-white">Normal</Badge>;
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="space-y-6 animate-in fade-in duration-500">
         <div className="space-y-2">
@@ -145,6 +151,16 @@ export default function Inventory() {
           ))}
         </div>
       </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="border-none shadow-lg">
+        <CardContent className="py-12 text-center text-muted-foreground">
+          <p>Could not load inventory: {error instanceof Error ? error.message : "Unknown error"}</p>
+        </CardContent>
+      </Card>
     );
   }
 
@@ -168,7 +184,6 @@ export default function Inventory() {
                 Add New Item
               </Button>
             </DialogTrigger>
-            {/* ... keep existing dialog content */}
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Add New Inventory Item</DialogTitle>
@@ -316,7 +331,9 @@ export default function Inventory() {
                   >
                     Cancel
                   </Button>
-                  <Button type="submit">Add Item</Button>
+                  <Button type="submit" disabled={submitting}>
+                    {submitting ? "Adding..." : "Add Item"}
+                  </Button>
                 </div>
               </form>
             </DialogContent>
@@ -329,7 +346,7 @@ export default function Inventory() {
         <CardHeader>
           <CardTitle className="text-xl">Search Inventory</CardTitle>
           <CardDescription>
-            Find items by name or filter by type
+            Find items by name
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -338,7 +355,10 @@ export default function Inventory() {
             <Input
               placeholder="Search for inventory items..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setPage(0);
+              }}
               className="pl-10 h-12"
             />
           </div>
@@ -351,12 +371,12 @@ export default function Inventory() {
           <div className="flex items-center justify-between">
             <CardTitle className="text-xl">Inventory Items</CardTitle>
             <Badge variant="secondary" className="text-base px-3 py-1">
-              {filteredItems.length} items
+              {total} item{total === 1 ? "" : "s"}
             </Badge>
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="rounded-lg border overflow-hidden">
+        <CardContent className="space-y-4">
+          <div className={`rounded-lg border overflow-hidden transition-opacity ${isFetching ? "opacity-60" : ""}`}>
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50">
@@ -370,20 +390,58 @@ export default function Inventory() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredItems.map((item) => (
-                  <TableRow key={item.id} className="hover:bg-muted/30 transition-colors">
-                    <TableCell className="font-medium">{item.item_name}</TableCell>
-                    <TableCell>{item.item_type}</TableCell>
-                    <TableCell className="font-semibold">{item.current_stock}</TableCell>
-                    <TableCell>{item.min_required}</TableCell>
-                    <TableCell>{getStockStatus(item)}</TableCell>
-                    <TableCell>${parseFloat(item.unit_cost.toString()).toFixed(2)}</TableCell>
-                    <TableCell>{item.avg_usage_per_day}</TableCell>
+                {items.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                      No items match your search.
+                    </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  items.map((item) => (
+                    <TableRow key={item.id} className="hover:bg-muted/30 transition-colors">
+                      <TableCell className="font-medium">{item.item_name}</TableCell>
+                      <TableCell>{item.item_type}</TableCell>
+                      <TableCell className="font-semibold">{item.current_stock}</TableCell>
+                      <TableCell>{item.min_required}</TableCell>
+                      <TableCell>{getStockStatus(item)}</TableCell>
+                      <TableCell>${parseFloat(item.unit_cost.toString()).toFixed(2)}</TableCell>
+                      <TableCell>{item.avg_usage_per_day}</TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">
+                Page {page + 1} of {totalPages}
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page === 0}
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  className="gap-1"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page + 1 >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                  className="gap-1"
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
