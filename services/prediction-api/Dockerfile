@@ -4,6 +4,12 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# libgomp1 (OpenMP runtime) is required by LightGBM's compiled binary at
+# import time -- python:3.11-slim doesn't include it, and lightgbm fails
+# with "OSError: libgomp.so.1: cannot open shared object file" without it.
+RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY services/prediction-api/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
