@@ -10,15 +10,15 @@ The app originally ran on a Lovable-managed Supabase backend ("Lovable Cloud"), 
 - **Frontend `.env`**: updated to point at the new project.
 - Smoke-tested `secure-sign-in` live against the new project (correctly rejects bad credentials and tracks remaining attempts) -- confirms migrations + RLS + functions are wired together correctly end to end.
 - The old Lovable-managed project is now unused by this repo going forward; nothing was deleted there, it's just no longer referenced.
+- **Vercel** (`medstockwiseapp`): environment variables updated to the new project (Production/Preview/Development), and redeployed. `medstockwiseapp.vercel.app` is now live on the new backend -- verified the deployed bundle contains the new project ref and that `/`, `/auth`, `/inventory` all return 200 (a `vercel.json` SPA rewrite was added in the same pass; direct navigation to client-side routes was 404ing before that, since no rewrite config existed at all).
 
-## What's still needed (can't be done without dashboard/account access this session didn't have)
+## What's still needed
 
-1. **Update Vercel's environment variables** to the new project's values (below) and redeploy -- the currently-live `medstockwiseapp.vercel.app` still points at the old Lovable-managed project until this happens.
-2. **Create the first admin account**: sign up a normal account through the app (`/auth`), which defaults to the `nurse` role, then promote it via SQL (Supabase Dashboard -> SQL Editor, now directly accessible on the new project):
+1. **Create the first admin account**: sign up a normal account through the app (`/auth`), which defaults to the `nurse` role, then promote it via SQL (Supabase Dashboard -> SQL Editor, directly accessible on the new project):
    ```sql
    update public.user_roles set role = 'admin' where user_id = '<your-user-id-from-auth.users>';
    ```
-3. **Deploy the prediction API** (`services/prediction-api/`) and set its URL/key as secrets (below) -- until then, predictions use the formula fallback, clearly labeled `model_source: "fallback_formula"` in responses.
+2. **Deploy the prediction API** (`services/prediction-api/`) and set its URL/key as secrets (below) -- until then, predictions use the formula fallback, clearly labeled `model_source: "fallback_formula"` in responses.
 
 ## 1. Supabase (reference -- already done for the new project above)
 
@@ -50,18 +50,18 @@ Not deployed yet -- see [services/prediction-api/README.md](../services/predicti
 
 Retraining: `python3 ml/train.py` regenerates `ml/models/`; rebuild and redeploy the prediction API afterward.
 
-## 3. Frontend (Vercel)
+## 3. Frontend (Vercel) -- done
 
-Build command: `npm run build`. Output directory: `dist`. Framework preset: Vite.
+Build command: `npm run build`. Output directory: `dist`. Framework preset: Vite. `vercel.json` adds the SPA rewrite (`/(.*) -> /index.html`) needed for client-side routing to survive a direct page load/refresh.
 
-Required environment variables (Vercel Project Settings -> Environment Variables) -- **these need updating to the new project's values**:
+Environment variables (Vercel Project Settings -> Environment Variables), set across Production/Preview/Development:
 ```
 VITE_SUPABASE_PROJECT_ID=umnvrftxfxaunofkwbgh
 VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_OBLdIYT__sYdnoI_77EMOQ_kxweEO34
 VITE_SUPABASE_URL=https://umnvrftxfxaunofkwbgh.supabase.co
 ```
 
-If the Vercel project is connected to this GitHub repo, pushing to `main` triggers a deploy automatically (the env vars still need updating in Vercel's dashboard regardless). Otherwise: `vercel --prod` from the repo root.
+Deployed via `vercel --prod` (no GitHub integration is connected on this project, so pushing to `main` does **not** auto-deploy -- redeploy manually with `vercel --prod` after future changes, or connect GitHub integration in Vercel's project settings if you want that automation).
 
 ## 4. CI
 

@@ -38,3 +38,6 @@ venv/
 # Supabase CLI local state
 supabase/.temp/
 supabase/.branches/
+
+# Vercel CLI local state
+.vercel
