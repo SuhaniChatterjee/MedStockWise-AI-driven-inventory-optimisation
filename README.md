@@ -1,49 +1,92 @@
-# Welcome to your project
+# MedStock Wise
 
+AI-assisted hospital inventory management: demand forecasting, cost optimization (EOQ/reorder points), low-stock alerting, and role-based inventory tracking.
 
-**Use your preferred IDE**
+## Overview
 
+MedStock Wise is a React/Supabase web app that tracks hospital inventory (equipment and consumables), predicts near-term demand for each item, flags items at risk of running out, and recommends order quantities. Predictions are served by a real trained LightGBM model via a separate FastAPI microservice, not a hardcoded formula.
 
+**Full documentation:**
+- [docs/architecture.md](docs/architecture.md) — system design, data flow, why it's shaped this way
+- [docs/api.md](docs/api.md) — Supabase edge function request/response contracts
+- [docs/deployment.md](docs/deployment.md) — how to actually deploy this (Supabase, prediction API, frontend)
+- [ml/README.md](ml/README.md) — the ML pipeline, including an honest look at what the data does and doesn't support
+- [services/prediction-api/README.md](services/prediction-api/README.md) — running/deploying the model-serving microservice
+- [docs/AUTH_SECURITY_IMPLEMENTATION.md](docs/AUTH_SECURITY_IMPLEMENTATION.md) — auth security measures (rate limiting, password history, RLS)
+- [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md), [ACCESSIBILITY.md](ACCESSIBILITY.md), [MICROINTERACTIONS.md](MICROINTERACTIONS.md) — frontend design conventions
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+## Tech stack
 
-Follow these steps:
+| Layer | Tech |
+|---|---|
+| Frontend | React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui, React Query, React Router |
+| Backend | Supabase (Postgres + Row-Level Security, Auth, Edge Functions on Deno) |
+| ML | Python, LightGBM, scikit-learn, pandas |
+| ML serving | FastAPI microservice, Docker |
+| Testing | Vitest + Testing Library (frontend), pytest (ML pipeline) |
+| CI | GitHub Actions |
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+## Project structure
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+```
+medstock-wise/
+├── src/                    # React app (routes in src/pages, shared UI in src/components)
+├── supabase/
+│   ├── functions/          # Deno edge functions (see docs/api.md)
+│   └── migrations/         # Postgres schema + RLS policies, in order
+├── ml/
+│   ├── data/raw/           # Source datasets
+│   ├── notebooks/          # Exploratory analysis
+│   ├── train.py            # Reproducible training script -> ml/models/
+│   └── tests/              # pytest: leakage checks, determinism
+├── services/
+│   └── prediction-api/     # FastAPI service that serves the trained model
+├── docs/                   # Architecture, API, deployment, auth security docs
+└── .github/workflows/      # CI
+```
 
-# Step 3: Install the necessary dependencies.
-npm i
+## Getting started
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+Prerequisites: Node.js 18+, npm, and (only if retraining/serving the model) Python 3.11+.
+
+```bash
+git clone <this-repo-url>
+cd medstock-wise
+npm install
+cp .env.example .env   # fill in your Supabase project's URL + anon key
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+The app expects a Supabase project with the schema in `supabase/migrations/` applied (via `supabase db push` or the SQL editor) and the edge functions in `supabase/functions/` deployed (`supabase functions deploy`). See [docs/deployment.md](docs/deployment.md) for the full setup, including required secrets.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Testing & verification
 
-**Use GitHub Codespaces**
+```bash
+npm run lint             # ESLint
+npx tsc --noEmit -p tsconfig.app.json   # Typecheck (strict mode)
+npm test                 # Vitest unit tests
+npm run build            # Production build
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+python3 -m pytest ml/    # ML pipeline tests (no-leakage, determinism)
+```
 
-## What technologies are used for this project?
+All of the above run in CI on every push/PR to `main` (`.github/workflows/ci.yml`).
 
-This project is built with:
+## ML pipeline (short version)
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+`ml/train.py` trains on the real dataset the app seeds from (`ml/data/raw/inventory_data.csv`), not a synthetic generator. Worth knowing before trusting the demand numbers: this dataset's `Avg_Usage_Per_Day` field has almost no correlation with its own history or any other column (~0.01–0.07) — it behaves like independent noise. The model (LightGBM, R² ≈ -0.01 on held-out data) reflects that honestly rather than being trained on easier synthetic data to produce a better-looking number. Full explanation, including why the shortage-risk classification still holds up reasonably well, in [ml/README.md](ml/README.md).
 
+## Deployment status
+
+- **Frontend**: deployable to Vercel (or any static host) via `npm run build`.
+- **Backend**: Supabase project with migrations + edge functions applied.
+- **Prediction API**: not deployed by default — `run-predictions` falls back to a simple formula until `services/prediction-api` is deployed and `PREDICTION_API_URL`/`PREDICTION_API_KEY` are set as Supabase secrets. See [docs/deployment.md](docs/deployment.md).
+
+## Future scope
+
+- Deploy the prediction API and wire up real production secrets (see deployment doc).
+- Multi-hospital tenancy.
+- Data export/reporting (CSV/PDF).
+- MFA/WebAuthn for admin accounts.
+- A native mobile client (the app is already a installable PWA).
+- Revisit the demand model once real day-level usage logs (not the current sparse, low-signal source dataset) are available — `usage_observations` is already accumulating history for this.
