@@ -5,28 +5,28 @@
 @layer base {
   :root {
     /* ===== Color Tokens ===== */
-    /* Primary: Medical Blue - Trust, professionalism, healthcare */
-    --primary: 200 95% 42%;
+    /* Primary: Deep Teal - clinical, calm, trustworthy */
+    --primary: 175 77% 26%;
     --primary-foreground: 0 0% 100%;
-    --primary-glow: 200 100% 65%;
-    --primary-muted: 200 80% 85%;
-    
-    /* Secondary: Teal - Healing, balance, medical */
-    --secondary: 180 60% 45%;
+    --primary-glow: 175 65% 45%;
+    --primary-muted: 175 40% 90%;
+
+    /* Secondary: Emerald - data/success accent */
+    --secondary: 160 84% 39%;
     --secondary-foreground: 0 0% 100%;
-    --secondary-muted: 180 40% 85%;
-    
-    /* Accent: Vibrant Teal - Interactive elements */
-    --accent: 165 70% 55%;
+    --secondary-muted: 160 50% 90%;
+
+    /* Accent: Soft Cyan - interactive elements */
+    --accent: 189 94% 43%;
     --accent-foreground: 0 0% 100%;
-    --accent-hover: 165 70% 45%;
-    
+    --accent-hover: 189 90% 36%;
+
     /* Neutrals: Clean, professional grays */
     --muted: 210 20% 96%;
     --muted-foreground: 210 15% 45%;
-    --background: 0 0% 100%;
+    --background: 210 40% 98%;
     --foreground: 210 15% 15%;
-    
+
     /* UI Elements */
     --card: 0 0% 100%;
     --card-foreground: 210 15% 15%;
@@ -34,8 +34,8 @@
     --popover-foreground: 210 15% 15%;
     --border: 210 20% 88%;
     --input: 210 20% 88%;
-    --ring: 200 95% 42%;
-    
+    --ring: 175 77% 26%;
+
     /* Status Colors */
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
@@ -43,7 +43,7 @@
     --success-foreground: 0 0% 100%;
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
-    --info: 200 95% 42%;
+    --info: 189 94% 43%;
     --info-foreground: 0 0% 100%;
     
     /* ===== Spacing Scale ===== */
@@ -55,13 +55,17 @@
     --spacing-2xl: 3rem;
     
     /* ===== Border Radius ===== */
-    --radius-sm: 0.25rem;
-    --radius: 0.5rem;
+    /* --radius drives Tailwind's rounded-lg (see tailwind.config.ts), which
+       is what Card/Dialog/etc. actually use -- bumped for a more generous,
+       "Apple-minimalism" feel. --radius-sm/md/lg/xl below are additional
+       tokens for direct use, not currently wired into Tailwind's scale. */
+    --radius-sm: 0.375rem;
+    --radius: 1.25rem;
     --radius-md: 0.75rem;
-    --radius-lg: 1rem;
+    --radius-lg: 1.25rem;
     --radius-xl: 1.5rem;
     --radius-full: 9999px;
-    
+
     /* ===== Shadows (Elevated Design) ===== */
     --shadow-xs: 0 1px 2px hsl(210 20% 70% / 0.08);
     --shadow-sm: 0 2px 4px hsl(210 20% 70% / 0.1);
@@ -69,14 +73,14 @@
     --shadow-lg: 0 8px 16px hsl(210 20% 70% / 0.14);
     --shadow-xl: 0 12px 24px hsl(210 20% 70% / 0.16);
     --shadow-2xl: 0 20px 40px hsl(210 20% 70% / 0.2);
-    --shadow-elegant: 0 10px 30px -10px hsl(200 95% 42% / 0.2);
-    --shadow-glow: 0 0 40px hsl(200 100% 65% / 0.3);
+    --shadow-elegant: 0 10px 30px -10px hsl(175 77% 26% / 0.2);
+    --shadow-glow: 0 0 40px hsl(175 65% 45% / 0.3);
     --shadow-card: 0 2px 8px hsl(210 20% 70% / 0.08);
-    
+
     /* ===== Gradients ===== */
-    --gradient-primary: linear-gradient(135deg, hsl(200 95% 42%) 0%, hsl(180 60% 45%) 100%);
-    --gradient-secondary: linear-gradient(135deg, hsl(180 60% 45%) 0%, hsl(165 70% 55%) 100%);
-    --gradient-hero: linear-gradient(180deg, hsl(200 95% 97%) 0%, hsl(0 0% 100%) 100%);
+    --gradient-primary: linear-gradient(135deg, hsl(175 77% 26%) 0%, hsl(160 84% 39%) 100%);
+    --gradient-secondary: linear-gradient(135deg, hsl(160 84% 39%) 0%, hsl(189 94% 43%) 100%);
+    --gradient-hero: linear-gradient(180deg, hsl(175 40% 97%) 0%, hsl(0 0% 100%) 100%);
     --gradient-success: linear-gradient(135deg, hsl(142 76% 36%) 0%, hsl(142 76% 46%) 100%);
     --gradient-warning: linear-gradient(135deg, hsl(38 92% 50%) 0%, hsl(38 92% 60%) 100%);
     --gradient-danger: linear-gradient(135deg, hsl(0 84% 60%) 0%, hsl(0 84% 70%) 100%);
@@ -91,53 +95,53 @@
 
   .dark {
     /* ===== Dark Mode Colors ===== */
-    --primary: 200 95% 50%;
-    --primary-foreground: 210 15% 10%;
-    --primary-glow: 200 100% 70%;
-    --primary-muted: 200 80% 25%;
-    
-    --secondary: 180 50% 40%;
+    --primary: 175 70% 38%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 175 65% 55%;
+    --primary-muted: 175 40% 22%;
+
+    --secondary: 160 70% 45%;
     --secondary-foreground: 0 0% 100%;
-    --secondary-muted: 180 40% 25%;
-    
-    --accent: 165 60% 50%;
+    --secondary-muted: 160 40% 22%;
+
+    --accent: 189 80% 48%;
     --accent-foreground: 0 0% 100%;
-    --accent-hover: 165 60% 40%;
-    
+    --accent-hover: 189 80% 40%;
+
     --muted: 210 20% 15%;
     --muted-foreground: 210 15% 65%;
     --background: 210 20% 8%;
     --foreground: 0 0% 95%;
-    
+
     --card: 210 20% 12%;
     --card-foreground: 0 0% 95%;
     --popover: 210 20% 12%;
     --popover-foreground: 0 0% 95%;
     --border: 210 20% 25%;
     --input: 210 20% 25%;
-    --ring: 200 95% 50%;
-    
+    --ring: 175 70% 38%;
+
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
     --success: 142 76% 45%;
     --success-foreground: 0 0% 100%;
     --warning: 38 92% 60%;
     --warning-foreground: 210 15% 10%;
-    --info: 200 95% 50%;
+    --info: 189 80% 48%;
     --info-foreground: 210 15% 10%;
-    
+
     --shadow-xs: 0 1px 2px hsl(0 0% 0% / 0.2);
     --shadow-sm: 0 2px 4px hsl(0 0% 0% / 0.25);
     --shadow-md: 0 4px 8px hsl(0 0% 0% / 0.3);
     --shadow-lg: 0 8px 16px hsl(0 0% 0% / 0.35);
     --shadow-xl: 0 12px 24px hsl(0 0% 0% / 0.4);
     --shadow-2xl: 0 20px 40px hsl(0 0% 0% / 0.5);
-    --shadow-elegant: 0 10px 30px -10px hsl(200 95% 50% / 0.3);
-    --shadow-glow: 0 0 40px hsl(200 100% 70% / 0.4);
+    --shadow-elegant: 0 10px 30px -10px hsl(175 70% 38% / 0.3);
+    --shadow-glow: 0 0 40px hsl(175 65% 55% / 0.4);
     --shadow-card: 0 2px 8px hsl(0 0% 0% / 0.3);
-    
-    --gradient-primary: linear-gradient(135deg, hsl(200 95% 50%) 0%, hsl(180 50% 40%) 100%);
-    --gradient-secondary: linear-gradient(135deg, hsl(180 50% 40%) 0%, hsl(165 60% 50%) 100%);
+
+    --gradient-primary: linear-gradient(135deg, hsl(175 70% 38%) 0%, hsl(160 70% 45%) 100%);
+    --gradient-secondary: linear-gradient(135deg, hsl(160 70% 45%) 0%, hsl(189 80% 48%) 100%);
     --gradient-hero: linear-gradient(180deg, hsl(210 20% 12%) 0%, hsl(210 20% 8%) 100%);
     --gradient-success: linear-gradient(135deg, hsl(142 76% 45%) 0%, hsl(142 76% 55%) 100%);
     --gradient-warning: linear-gradient(135deg, hsl(38 92% 60%) 0%, hsl(38 92% 70%) 100%);
