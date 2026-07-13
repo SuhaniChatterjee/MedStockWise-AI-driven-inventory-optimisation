@@ -41,6 +41,15 @@ file_size_limit = "50MiB"
 
 [auth]
 enabled = true
+# NOTE: these two only apply to `supabase start` (local dev) -- they are
+# NOT pushed to a remote/hosted project by `db push` or `functions deploy`.
+# For a hosted project, site_url/redirect URLs are a separate setting
+# (Dashboard -> Authentication -> URL Configuration, or the Management API's
+# `/v1/projects/{ref}/config/auth`). A fresh hosted project defaults to
+# site_url=http://localhost:3000 with an empty redirect allow-list, which
+# silently breaks email confirmation links (they verify server-side, then
+# redirect to a localhost URL that doesn't load for the user). Set this to
+# your real deployed URL after creating a new project.
 site_url = "http://127.0.0.1:3000"
 additional_redirect_urls = ["https://127.0.0.1:3000"]
 jwt_expiry = 3600

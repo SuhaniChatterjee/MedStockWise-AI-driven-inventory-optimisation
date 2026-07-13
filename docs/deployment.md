@@ -12,13 +12,12 @@ The app originally ran on a Lovable-managed Supabase backend ("Lovable Cloud"), 
 - The old Lovable-managed project is now unused by this repo going forward; nothing was deleted there, it's just no longer referenced.
 - **Vercel** (`medstockwiseapp`): environment variables updated to the new project (Production/Preview/Development), and redeployed. `medstockwiseapp.vercel.app` is now live on the new backend -- verified the deployed bundle contains the new project ref and that `/`, `/auth`, `/inventory` all return 200 (a `vercel.json` SPA rewrite was added in the same pass; direct navigation to client-side routes was 404ing before that, since no rewrite config existed at all).
 
+- **Auth redirect URL**: the new project's Auth config defaulted to `site_url: http://localhost:3000` with an empty redirect allow-list (this is a dashboard/Management-API-level setting, not something `db push`/`functions deploy` touches). This broke email confirmation links -- they'd verify successfully server-side but then redirect to `localhost:3000`, which doesn't load. Fixed via the Management API: `site_url` -> `https://medstockwiseapp.vercel.app`, with that URL (and `http://localhost:8080/**` for local dev) added to `uri_allow_list`.
+- **First admin account**: created (signed up normally through the app, defaulted to `nurse`) and promoted to `admin` via direct SQL through the Management API's query endpoint.
+
 ## What's still needed
 
-1. **Create the first admin account**: sign up a normal account through the app (`/auth`), which defaults to the `nurse` role, then promote it via SQL (Supabase Dashboard -> SQL Editor, directly accessible on the new project):
-   ```sql
-   update public.user_roles set role = 'admin' where user_id = '<your-user-id-from-auth.users>';
-   ```
-2. **Deploy the prediction API** (`services/prediction-api/`) and set its URL/key as secrets (below) -- until then, predictions use the formula fallback, clearly labeled `model_source: "fallback_formula"` in responses.
+1. **Deploy the prediction API** (`services/prediction-api/`) and set its URL/key as secrets (below) -- until then, predictions use the formula fallback, clearly labeled `model_source: "fallback_formula"` in responses.
 
 ## 1. Supabase (reference -- already done for the new project above)
 
@@ -75,5 +74,6 @@ Deployed via `vercel --prod`. Vercel's Git integration is connected to `SuhaniCh
 - [x] Vercel env vars updated to the new project + redeployed
 - [x] Frontend loads with no console-breaking errors against the new backend; `/`, `/auth`, `/inventory` all verified 200 live
 - [x] Vercel Git integration connected to this repo's `main` branch, for auto-deploy on future pushes
-- [ ] First admin account created and promoted via SQL
+- [x] Auth site_url/redirect allow-list fixed so email confirmation links land somewhere real
+- [x] First admin account created and promoted via SQL
 - [ ] `PREDICTION_API_URL`/`PREDICTION_API_KEY` secrets set once the prediction API is deployed; confirm `model_source: "ml_service"` (not `"fallback_formula"`) in a real prediction response
