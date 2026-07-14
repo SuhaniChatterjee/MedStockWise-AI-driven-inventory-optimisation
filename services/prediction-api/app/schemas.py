@@ -1,11 +1,6 @@
-from typing import Literal, Optional
+from typing import Optional
 
 from pydantic import BaseModel, Field
-
-
-class UsageObservation(BaseModel):
-    observed_at: str
-    avg_usage_per_day: float
 
 
 class PredictionRequest(BaseModel):
@@ -13,14 +8,18 @@ class PredictionRequest(BaseModel):
     min_required: int = Field(ge=0)
     max_capacity: int = Field(ge=0)
     unit_cost: float = Field(ge=0)
+    # The item's own baseline daily usage -- provides the demand LEVEL, which
+    # the model's seasonal multiplier then scales. This is what makes the
+    # global model scale-invariant across hospitals of any size.
     avg_usage_per_day: float = Field(ge=0)
     restock_lead_time: int = Field(ge=0)
-    item_type: Literal["Equipment", "Consumable"]
     item_name: str
-    observed_at: Optional[str] = None
-    # Prior observations for this item, most recent last. Empty/omitted for
-    # items with no recorded history yet (cold start).
-    history: list[UsageObservation] = Field(default_factory=list)
+    item_type: str
+    # Seasonal profile + climate region -> selects the multiplier curve.
+    demand_category: str = "general"
+    region: str = "temperate"
+    # ISO date the forecast is for; defaults to today (server side).
+    prediction_date: Optional[str] = None
 
 
 class PredictionResponse(BaseModel):
@@ -30,12 +29,9 @@ class PredictionResponse(BaseModel):
     replenishment_needs: float
     shortage_risk: bool
     risk_ratio: float
-    feature_contributions: dict[str, float]
+    # Explainability: the seasonal factor applied and why.
+    seasonal_multiplier: float
+    demand_category: str
+    region: str
     model_version: str
-    model_type: str
-    used_history_points: int
-    # Model-level confidence derived from the selected model's held-out test
-    # R² (clamped to [0, 1]), not a per-prediction certainty estimate --
-    # LightGBM's point predictions don't natively carry one without a
-    # separate quantile model. Honest but coarse: see ml/README.md.
     model_confidence: float

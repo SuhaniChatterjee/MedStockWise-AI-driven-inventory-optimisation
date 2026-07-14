@@ -1,5 +1,4 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.74.0";
 import { z } from "https://esm.sh/zod@3.23.8";
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { createServiceRoleClient, getHospitalId, requireUser, userHasAnyRole } from "../_shared/auth.ts";
@@ -22,7 +21,9 @@ interface PredictionResult {
   estimated_demand: number;
   inventory_shortfall: number;
   replenishment_needs: number;
-  feature_contributions: Record<string, number>;
+  seasonal_multiplier: number;
+  demand_category: string;
+  region: string;
   confidence: number;
   shortage_risk: boolean | null;
   model_source: "ml_service" | "fallback_formula";
@@ -32,49 +33,24 @@ const PREDICTION_API_URL = Deno.env.get("PREDICTION_API_URL");
 const PREDICTION_API_KEY = Deno.env.get("PREDICTION_API_KEY");
 
 // Fallback used when the ML service is unset/unreachable, so the app keeps
-// working (with a clearly-labeled degraded estimate) rather than failing
-// outright. See services/prediction-api/README.md for deploying the model.
-function predictWithFallbackFormula(item: ItemLike): PredictionResult {
+// working (with a clearly-labeled degraded estimate -- no seasonal adjustment)
+// rather than failing outright. See services/prediction-api/README.md.
+function predictWithFallbackFormula(item: ItemLike, region: string): PredictionResult {
   const estimated_demand = item.avg_usage_per_day * item.restock_lead_time;
-  const inventory_shortfall = Math.max(0, item.min_required - item.current_stock);
-  const replenishment_needs = Math.max(0, estimated_demand - item.current_stock);
-
-  const feature_contributions = {
-    avg_usage_per_day: (item.avg_usage_per_day / (estimated_demand || 1)) * 0.4,
-    restock_lead_time: (item.restock_lead_time / (estimated_demand || 1)) * 0.3,
-    current_stock: (item.current_stock / (item.max_capacity || 1)) * 0.15,
-    min_required: (item.min_required / (item.max_capacity || 1)) * 0.15,
-  };
-
   return {
     estimated_demand,
-    inventory_shortfall,
-    replenishment_needs,
-    feature_contributions,
+    inventory_shortfall: Math.max(0, item.min_required - item.current_stock),
+    replenishment_needs: Math.max(0, estimated_demand - item.current_stock),
+    seasonal_multiplier: 1,
+    demand_category: (item as { demand_category?: string }).demand_category ?? "general",
+    region,
     confidence: 0,
     shortage_risk: null,
     model_source: "fallback_formula",
   };
 }
 
-async function fetchHistory(supabase: SupabaseClient, itemId: string) {
-  const { data } = await supabase
-    .from("usage_observations")
-    .select("observed_at, avg_usage_per_day")
-    .eq("item_id", itemId)
-    .order("observed_at", { ascending: false })
-    .limit(10);
-
-  return (data ?? []).reverse().map((row) => ({
-    observed_at: row.observed_at,
-    avg_usage_per_day: Number(row.avg_usage_per_day),
-  }));
-}
-
-async function predictWithMlService(
-  item: ItemLike,
-  history: { observed_at: string; avg_usage_per_day: number }[]
-): Promise<PredictionResult> {
+async function predictWithMlService(item: ItemLike, region: string): Promise<PredictionResult> {
   if (!PREDICTION_API_URL) {
     throw new Error("PREDICTION_API_URL not configured");
   }
@@ -94,7 +70,8 @@ async function predictWithMlService(
       restock_lead_time: item.restock_lead_time,
       item_type: item.item_type,
       item_name: item.item_name,
-      history,
+      demand_category: (item as { demand_category?: string }).demand_category ?? "general",
+      region,
     }),
   });
 
@@ -108,22 +85,21 @@ async function predictWithMlService(
     estimated_demand: result.estimated_demand,
     inventory_shortfall: result.inventory_shortfall,
     replenishment_needs: result.replenishment_needs,
-    feature_contributions: result.feature_contributions,
+    seasonal_multiplier: result.seasonal_multiplier,
+    demand_category: result.demand_category,
+    region: result.region,
     confidence: result.model_confidence,
     shortage_risk: result.shortage_risk,
     model_source: "ml_service",
   };
 }
 
-async function predictItem(
-  item: ItemLike,
-  history: { observed_at: string; avg_usage_per_day: number }[]
-): Promise<PredictionResult> {
+async function predictItem(item: ItemLike, region: string): Promise<PredictionResult> {
   try {
-    return await predictWithMlService(item, history);
+    return await predictWithMlService(item, region);
   } catch (error) {
     console.warn("ML service unavailable, using fallback formula:", error instanceof Error ? error.message : error);
-    return predictWithFallbackFormula(item);
+    return predictWithFallbackFormula(item, region);
   }
 }
 
@@ -167,9 +143,19 @@ serve(async (req) => {
 
     const activeModel = activeModels[0];
 
-    // Handle single prediction (demo mode - no DB persistence, no history)
+    // The hospital's climate region selects which seasonal multiplier curve
+    // the model applies (see services/prediction-api). One fetch, reused for
+    // every item below.
+    const { data: hospital } = await supabase
+      .from('hospitals')
+      .select('region')
+      .eq('id', hospitalId)
+      .single();
+    const region = hospital?.region ?? 'temperate';
+
+    // Handle single prediction (demo mode - no DB persistence)
     if (single_prediction) {
-      const prediction = await predictItem(single_prediction, []);
+      const prediction = await predictItem(single_prediction, region);
 
       return jsonResponse({
         success: true,
@@ -195,11 +181,11 @@ serve(async (req) => {
     const alerts = [];
 
     for (const item of items) {
-      const history = await fetchHistory(supabase, item.id);
-      const prediction = await predictItem(item, history);
+      const prediction = await predictItem(item, region);
 
-      // Record this observation so future predictions for this item have
-      // real history to compute lag/rolling features from.
+      // Record this observation as the item's usage history accrues -- the
+      // baseline the seasonal multiplier scales can later be refined from
+      // this rolling history rather than the static avg_usage_per_day column.
       await supabase.from('usage_observations').insert({
         item_id: item.id,
         hospital_id: hospitalId,
@@ -235,9 +221,15 @@ serve(async (req) => {
             avg_usage_per_day: item.avg_usage_per_day,
             restock_lead_time: item.restock_lead_time,
             model_source: prediction.model_source,
-            history_points_used: history.length,
+            demand_category: prediction.demand_category,
+            region: prediction.region,
           },
-          feature_contributions: prediction.feature_contributions,
+          // Explainability for the global model: the seasonal factor applied
+          // (why demand is up/down vs the item's baseline this time of year).
+          feature_contributions: {
+            seasonal_multiplier: prediction.seasonal_multiplier,
+            baseline_avg_usage_per_day: item.avg_usage_per_day,
+          },
           created_by: user.id,
         });
 

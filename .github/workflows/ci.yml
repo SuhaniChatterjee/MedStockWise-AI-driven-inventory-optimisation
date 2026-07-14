@@ -39,27 +39,13 @@ jobs:
         run: python3 -m pytest ml/ -v
 
   prediction-api:
-    name: Prediction API smoke test
+    name: Prediction API tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install -r services/prediction-api/requirements.txt
-      - name: Import app and run a real prediction
-        working-directory: services/prediction-api
-        run: |
-          python3 -c "
-          from app.model import DemandModel
-          from app.schemas import PredictionRequest
-          m = DemandModel()
-          req = PredictionRequest(
-              current_stock=100, min_required=50, max_capacity=500, unit_cost=10,
-              avg_usage_per_day=5, restock_lead_time=7, item_type='Equipment',
-              item_name='Ventilator', history=[]
-          )
-          result = m.predict(req)
-          assert 'estimated_demand' in result
-          print('OK:', result)
-          "
+      - run: pip install -r services/prediction-api/requirements.txt pytest
+      - name: Run serving tests (seasonal multiplier logic)
+        run: python3 -m pytest services/prediction-api/ -v

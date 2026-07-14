@@ -17,6 +17,9 @@ export const itemLikeSchema = z.object({
   restock_lead_time: z.number().finite().min(0),
   unit_cost: z.number().finite().min(0),
   vendor_name: z.string().max(200).optional(),
+  demand_category: z
+    .enum(["general", "allergy", "respiratory_airway", "analgesic", "anti_inflammatory", "sedative"])
+    .optional(),
 });
 
 export const uuidSchema = z.string().uuid();

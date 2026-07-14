@@ -19,8 +19,8 @@ if not API_KEY:
 
 app = FastAPI(
     title="MedStockWise Prediction API",
-    description="Serves the LightGBM demand-forecasting model trained by ml/train.py.",
-    version="1.0.0",
+    description="Serves the global weather-informed demand model as per-category/region seasonal multiplier curves.",
+    version="2.0.0",
 )
 
 app.add_middleware(
@@ -37,7 +37,8 @@ model: DemandModel | None = None
 def load_model() -> None:
     global model
     model = DemandModel()
-    logger.info("Loaded model: %s", model.metrics.get("selected_model", "unknown"))
+    logger.info("Loaded seasonal multiplier curves: %d categories x %d regions",
+                len(model.categories), len(model.regions))
 
 
 def require_api_key(x_api_key: str | None = Header(default=None)) -> None:
@@ -55,10 +56,10 @@ def model_info(_: None = Depends(require_api_key)):
     if model is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
     return {
-        "model_type": model.schema.get("model_type"),
-        "feature_columns": model.feature_columns,
-        "risk_threshold": model.risk_threshold,
-        "metrics": model.metrics,
+        "model_version": "global-v1",
+        "categories": sorted(model.categories),
+        "regions": sorted(model.regions),
+        "indexing": model.data.get("indexing"),
     }
 
 

@@ -4,17 +4,15 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# libgomp1 (OpenMP runtime) is required by LightGBM's compiled binary at
-# import time -- python:3.11-slim doesn't include it, and lightgbm fails
-# with "OSError: libgomp.so.1: cannot open shared object file" without it.
-RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 \
-    && rm -rf /var/lib/apt/lists/*
-
+# Serving is now a pure-Python curve lookup (no LightGBM/pandas), so no
+# libgomp / system deps are needed -- the container is much lighter than the
+# earlier model-inference version.
 COPY services/prediction-api/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY services/prediction-api/app ./app
-COPY ml/models ./ml/models
+# Only the distilled curves are needed at serving time, not the raw model.
+COPY ml/models/seasonal_multipliers.json ./ml/models/seasonal_multipliers.json
 
 ENV MODEL_DIR=/app/ml/models
 EXPOSE 8000
