@@ -57,6 +57,7 @@ interface InventoryItem {
   avg_usage_per_day: number;
   restock_lead_time: number;
   vendor_name: string | null;
+  demand_category: string;
 }
 
 type ItemFormData = {
@@ -69,9 +70,21 @@ type ItemFormData = {
   avg_usage_per_day: number;
   restock_lead_time: number;
   vendor_name: string;
+  demand_category: string;
 };
 
 const PAGE_SIZE = 10;
+
+// Seasonal demand profiles the global model was trained on (see ml/README.md).
+// 'general' = no seasonal adjustment, right for equipment/most PPE.
+const DEMAND_CATEGORIES = [
+  { value: "general", label: "General (no seasonal pattern)" },
+  { value: "allergy", label: "Allergy-driven (spring peak)" },
+  { value: "respiratory_airway", label: "Respiratory / airway (cold-season peak)" },
+  { value: "analgesic", label: "Analgesic / antipyretic (fever season)" },
+  { value: "anti_inflammatory", label: "Anti-inflammatory" },
+  { value: "sedative", label: "Sedative / CNS" },
+];
 
 const EMPTY_FORM: ItemFormData = {
   item_name: "",
@@ -83,6 +96,7 @@ const EMPTY_FORM: ItemFormData = {
   avg_usage_per_day: 0,
   restock_lead_time: 0,
   vendor_name: "",
+  demand_category: "general",
 };
 
 function ItemFormFields({
@@ -179,13 +193,31 @@ function ItemFormFields({
           required
         />
       </div>
-      <div className="space-y-2 col-span-2">
+      <div className="space-y-2">
         <Label htmlFor="vendor_name">Vendor Name</Label>
         <Input
           id="vendor_name"
           value={data.vendor_name}
           onChange={(e) => onChange({ ...data, vendor_name: e.target.value })}
         />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="demand_category">Demand Pattern</Label>
+        <Select
+          value={data.demand_category}
+          onValueChange={(value) => onChange({ ...data, demand_category: value })}
+        >
+          <SelectTrigger id="demand_category">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {DEMAND_CATEGORIES.map((c) => (
+              <SelectItem key={c.value} value={c.value}>
+                {c.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
     </div>
   );
@@ -267,6 +299,7 @@ export default function Inventory() {
           avg_usage_per_day: item.avg_usage_per_day,
           restock_lead_time: item.restock_lead_time,
           vendor_name: item.vendor_name ?? "",
+          demand_category: item.demand_category,
         }))
       );
     } catch (err) {
@@ -309,6 +342,7 @@ export default function Inventory() {
       avg_usage_per_day: item.avg_usage_per_day,
       restock_lead_time: item.restock_lead_time,
       vendor_name: item.vendor_name ?? "",
+      demand_category: item.demand_category ?? "general",
     });
   };
 

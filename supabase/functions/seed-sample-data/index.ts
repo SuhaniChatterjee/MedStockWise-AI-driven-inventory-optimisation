@@ -59,7 +59,8 @@ serve(async (req) => {
         unit_cost: 5832.29,
         avg_usage_per_day: 55,
         restock_lead_time: 12,
-        vendor_name: "MedSupplies Inc."
+        vendor_name: "MedSupplies Inc.",
+        demand_category: "respiratory_airway"
       },
       {
         item_name: "Surgical Mask",
@@ -70,7 +71,8 @@ serve(async (req) => {
         unit_cost: 16062.98,
         avg_usage_per_day: 470,
         restock_lead_time: 6,
-        vendor_name: "MedSupplies Inc."
+        vendor_name: "MedSupplies Inc.",
+        demand_category: "respiratory_airway"
       },
       {
         item_name: "IV Drip",
@@ -81,7 +83,8 @@ serve(async (req) => {
         unit_cost: 15426.53,
         avg_usage_per_day: 158,
         restock_lead_time: 12,
-        vendor_name: "HealthTools Ltd."
+        vendor_name: "HealthTools Ltd.",
+        demand_category: "general"
       },
       {
         item_name: "Gloves",
@@ -92,7 +95,8 @@ serve(async (req) => {
         unit_cost: 2729.08,
         avg_usage_per_day: 418,
         restock_lead_time: 5,
-        vendor_name: "EquipMed Co."
+        vendor_name: "EquipMed Co.",
+        demand_category: "general"
       },
       {
         item_name: "X-ray Machine",
@@ -103,7 +107,8 @@ serve(async (req) => {
         unit_cost: 10669.37,
         avg_usage_per_day: 244,
         restock_lead_time: 2,
-        vendor_name: "MedSupplies Inc."
+        vendor_name: "MedSupplies Inc.",
+        demand_category: "general"
       },
       {
         item_name: "Bandages",
@@ -114,7 +119,8 @@ serve(async (req) => {
         unit_cost: 125.50,
         avg_usage_per_day: 95,
         restock_lead_time: 10,
-        vendor_name: "HealthTools Ltd."
+        vendor_name: "HealthTools Ltd.",
+        demand_category: "general"
       },
       {
         item_name: "Syringes",
@@ -125,7 +131,8 @@ serve(async (req) => {
         unit_cost: 744.10,
         avg_usage_per_day: 207,
         restock_lead_time: 15,
-        vendor_name: "EquipMed Co."
+        vendor_name: "EquipMed Co.",
+        demand_category: "general"
       },
       {
         item_name: "Oxygen Tanks",
@@ -136,7 +143,8 @@ serve(async (req) => {
         unit_cost: 8500.00,
         avg_usage_per_day: 8,
         restock_lead_time: 20,
-        vendor_name: "HealthTools Ltd."
+        vendor_name: "HealthTools Ltd.",
+        demand_category: "respiratory_airway"
       }
     ];
 

@@ -181,6 +181,8 @@ export type Database = {
           avg_usage_per_day: number
           created_at: string
           current_stock: number
+          demand_category: string
+          hospital_id: string
           id: string
           item_name: string
           item_type: string
@@ -195,6 +197,8 @@ export type Database = {
           avg_usage_per_day: number
           created_at?: string
           current_stock: number
+          demand_category?: string
+          hospital_id?: string
           id?: string
           item_name: string
           item_type: string
@@ -209,6 +213,8 @@ export type Database = {
           avg_usage_per_day?: number
           created_at?: string
           current_stock?: number
+          demand_category?: string
+          hospital_id?: string
           id?: string
           item_name?: string
           item_type?: string
