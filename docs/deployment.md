@@ -51,13 +51,13 @@ supabase secrets set ALERT_EMAIL_FROM="MedStock Wise <alerts@yourdomain.com>"
 
 `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are provided automatically to edge functions by Supabase; nothing to set for those.
 
-## 2. Prediction API -- done
+## 2. Prediction API -- done (now serving the weather-informed global model)
 
-Deployed to Render as a Docker web service, built directly from `services/prediction-api/Dockerfile` in this repo (no local Docker needed -- Render builds it server-side). Free tier: spins down after 15 min idle, ~30-60s cold start on the next request after that.
+Deployed to Render as a Docker web service, built from `services/prediction-api/Dockerfile`. Now serves the **global weather-informed model** distilled into seasonal multiplier curves (`ml/models/seasonal_multipliers.json`) -- pure-Python lookup, so the container no longer needs LightGBM/pandas. Verified live: a `respiratory_airway` item returns ~1.85x higher demand in January than July (real cold-season seasonality). Free tier: spins down after 15 min idle, ~30-60s cold start.
 
-If redeploying elsewhere, see [services/prediction-api/README.md](../services/prediction-api/README.md) for the general Docker build/deploy steps -- any container host works (Render, Railway, Fly.io, a VM). Two gotchas already fixed in the Dockerfile/code that would otherwise resurface on a fresh host: `libgomp1` must be installed for LightGBM to import, and `MODEL_DIR`'s local-dev fallback path must not be evaluated when the env var is already set (Python's `os.environ.get(name, default)` evaluates `default` unconditionally).
+Retraining / refreshing seasonality: `python3 ml/train_global.py && python3 ml/export_seasonal_curves.py`, then redeploy this service.
 
-Retraining: `python3 ml/train.py` regenerates `ml/models/`; rebuild and redeploy the prediction API afterward.
+Gotcha already fixed (would resurface on a fresh host): `MODEL_DIR`'s local-dev fallback path must not be evaluated when the env var is already set (Python's `os.environ.get(name, default)` evaluates `default` unconditionally).
 
 ## 3. Frontend (Vercel) -- done
 
@@ -89,5 +89,6 @@ Deployed via `vercel --prod`. Vercel's Git integration is connected to `SuhaniCh
 - [x] Prediction API deployed to Render; `/health` and `/predict` smoke-tested directly
 - [x] `PREDICTION_API_URL`/`PREDICTION_API_KEY` secrets set on the Supabase project
 - [x] `RESEND_API_KEY` set on the Supabase project; Resend integration verified via direct API call
-- [ ] Confirm `model_source: "ml_service"` (not `"fallback_formula"`) via a real logged-in "Run Predictions" click in the live app
+- [x] Global weather-informed model live on the prediction API; seasonal effect verified directly (Jan vs Jul respiratory demand)
+- [ ] Confirm `model_source: "ml_service"` end-to-end via a real logged-in "Run Predictions" click in the live app (every link verified independently; only the authenticated round-trip is untested)
 - [ ] Trigger a real low-stock alert (edit an item's stock down) to see the email flow end-to-end
