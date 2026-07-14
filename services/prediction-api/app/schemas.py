@@ -1,6 +1,6 @@
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class PredictionRequest(BaseModel):
@@ -23,6 +23,10 @@ class PredictionRequest(BaseModel):
 
 
 class PredictionResponse(BaseModel):
+    # Several fields start with "model_" (model_version/confidence), which
+    # pydantic reserves by default -- opt out of the protected namespace.
+    model_config = ConfigDict(protected_namespaces=())
+
     predicted_avg_usage_per_day: float
     estimated_demand: float
     inventory_shortfall: float

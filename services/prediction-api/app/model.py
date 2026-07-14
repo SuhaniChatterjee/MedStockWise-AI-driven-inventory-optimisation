@@ -5,7 +5,11 @@ from pathlib import Path
 
 from .schemas import PredictionRequest
 
-MODEL_DIR = Path(os.environ.get("MODEL_DIR", str(Path(__file__).resolve().parents[3] / "ml" / "models")))
+# os.environ.get(name, default) evaluates `default` unconditionally, and the
+# parents[3] local-dev fallback doesn't resolve in the Docker image's flatter
+# /app/app/model.py layout (where MODEL_DIR is always set anyway). Keep it lazy.
+_model_dir_env = os.environ.get("MODEL_DIR")
+MODEL_DIR = Path(_model_dir_env) if _model_dir_env else Path(__file__).resolve().parents[3] / "ml" / "models"
 
 # Holdout R2 of the global model (see ml/models/global_metrics.json). Reported
 # as a coarse, honest model-level confidence -- not a per-prediction estimate.
