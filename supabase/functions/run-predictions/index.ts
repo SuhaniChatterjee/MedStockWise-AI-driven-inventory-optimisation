@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.74.0";
 import { z } from "https://esm.sh/zod@3.23.8";
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
-import { createServiceRoleClient, requireUser, userHasAnyRole } from "../_shared/auth.ts";
+import { createServiceRoleClient, getHospitalId, requireUser, userHasAnyRole } from "../_shared/auth.ts";
 import { itemLikeSchema, parseOrError, uuidSchema } from "../_shared/validation.ts";
 import { sendAlertEmails } from "../_shared/email.ts";
 
@@ -135,6 +135,7 @@ serve(async (req) => {
   try {
     const supabase = createServiceRoleClient();
     const user = await requireUser(supabase, req);
+    const hospitalId = await getHospitalId(supabase, user.id);
 
     const parsed = parseOrError(predictionInputSchema, await req.json());
     if (!parsed.success) {
@@ -177,8 +178,10 @@ serve(async (req) => {
       });
     }
 
-    // Get inventory items
-    let query = supabase.from('inventory_items').select('*');
+    // Get inventory items -- scoped to the caller's hospital. The service-role
+    // key bypasses RLS, so this filter is the only thing standing between
+    // this query and every other hospital's inventory.
+    let query = supabase.from('inventory_items').select('*').eq('hospital_id', hospitalId);
     if (!run_all && item_id) {
       query = query.eq('id', item_id);
     }
@@ -199,6 +202,7 @@ serve(async (req) => {
       // real history to compute lag/rolling features from.
       await supabase.from('usage_observations').insert({
         item_id: item.id,
+        hospital_id: hospitalId,
         avg_usage_per_day: item.avg_usage_per_day,
         current_stock: item.current_stock,
       });
@@ -208,6 +212,7 @@ serve(async (req) => {
         .from('predictions')
         .insert({
           item_id: item.id,
+          hospital_id: hospitalId,
           estimated_demand: prediction.estimated_demand,
           replenishment_needs: prediction.replenishment_needs,
           inventory_shortfall: prediction.inventory_shortfall,
@@ -220,6 +225,7 @@ serve(async (req) => {
         // Store detailed prediction history
         await supabase.from('prediction_history').insert({
           item_id: item.id,
+          hospital_id: hospitalId,
           model_version_id: activeModel.id,
           predicted_demand: prediction.estimated_demand,
           confidence_score: prediction.confidence,
@@ -250,6 +256,7 @@ serve(async (req) => {
             title: `Critical Stock Alert: ${item.item_name}`,
             message: `Item is at ${stockPercentage.toFixed(1)}% of minimum required. Immediate action needed.`,
             item_id: item.id,
+            hospital_id: hospitalId,
             metadata: {
               current_stock: item.current_stock,
               min_required: item.min_required,
@@ -264,6 +271,7 @@ serve(async (req) => {
             title: `Low Stock Warning: ${item.item_name}`,
             message: `Item is at ${stockPercentage.toFixed(1)}% of minimum required. Consider restocking soon.`,
             item_id: item.id,
+            hospital_id: hospitalId,
             metadata: {
               current_stock: item.current_stock,
               min_required: item.min_required,
@@ -278,7 +286,7 @@ serve(async (req) => {
     // Batch insert alerts
     if (alerts.length > 0) {
       await supabase.from('alerts_history').insert(alerts);
-      await sendAlertEmails(supabase, alerts);
+      await sendAlertEmails(supabase, hospitalId, alerts);
     }
 
     console.log(`Generated ${predictions.length} predictions and ${alerts.length} alerts`);

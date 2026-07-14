@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
-import { createServiceRoleClient, requireUser, userHasAnyRole } from "../_shared/auth.ts";
+import { createServiceRoleClient, getHospitalId, requireUser, userHasAnyRole } from "../_shared/auth.ts";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -13,16 +13,19 @@ serve(async (req) => {
     // Only admins/inventory managers may (re-)seed the database -- this
     // writes with the service role key, which bypasses RLS entirely.
     const user = await requireUser(supabase, req);
+    const hospitalId = await getHospitalId(supabase, user.id);
     const authorized = await userHasAnyRole(supabase, user.id, ["admin", "inventory_manager"]);
     if (!authorized) {
       return jsonResponse({ error: "Only admins or inventory managers can seed data" }, 403);
     }
 
-    // Idempotency: skip if the database already has inventory data, so this
-    // can't be called repeatedly to keep duplicating rows.
+    // Idempotency: skip if THIS HOSPITAL already has inventory data. Scoped
+    // by hospital_id (not a global count) -- otherwise, once any one
+    // hospital had seeded data, no other hospital could ever seed at all.
     const { count, error: countError } = await supabase
       .from("inventory_items")
-      .select("id", { count: "exact", head: true });
+      .select("id", { count: "exact", head: true })
+      .eq("hospital_id", hospitalId);
 
     if (countError) {
       throw countError;
@@ -140,7 +143,7 @@ serve(async (req) => {
     // Insert inventory items
     const { data: insertedItems, error: inventoryError } = await supabase
       .from("inventory_items")
-      .insert(inventoryItems)
+      .insert(inventoryItems.map((item) => ({ ...item, hospital_id: hospitalId })))
       .select();
 
     if (inventoryError) {
@@ -150,44 +153,62 @@ serve(async (req) => {
 
     console.log(`Inserted ${insertedItems?.length} inventory items`);
 
-    // Insert model registry entry with the REAL metrics from the last
-    // `python3 ml/train.py` run (see ml/models/metrics.json) -- these were
-    // previously fabricated placeholder numbers. Update this block whenever
-    // the model is retrained.
-    const { data: modelData, error: modelError } = await supabase
+    // model_registry is global (one shared deployed model, not hospital
+    // data), so reuse the existing active row instead of inserting a new
+    // "active" one every time any hospital seeds -- that would leave
+    // multiple rows simultaneously marked is_active across hospitals.
+    let modelData;
+    const { data: existingModel } = await supabase
       .from("model_registry")
-      .insert({
-        model_version: "v2.0.0",
-        model_type: "LightGBM",
-        mae: 124.931,
-        rmse: 145.358,
-        r2_score: -0.01,
-        training_date: new Date().toISOString(),
-        is_active: true,
-        feature_importance: {
-          "Usage_Rolling_7": "highest per-prediction contribution (see ml/models/metrics.json)",
-          "Current_Stock": "second highest",
-          "Max_Capacity": "notable negative contribution",
-        },
-        hyperparameters: {
-          "note": "RandomizedSearchCV-selected, see ml/models/feature_schema.json for the full trained schema",
-        },
-        dataset_summary: {
-          "total_samples": 495,
-          "train_samples": 396,
-          "test_samples": 99,
-          "source": "ml/data/raw/inventory_data.csv (real dataset, not the notebook's synthetic generator)"
-        }
-      })
-      .select()
-      .single();
+      .select("*")
+      .eq("is_active", true)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-    if (modelError) {
-      console.error("Error inserting model:", modelError);
-      throw modelError;
+    if (existingModel) {
+      modelData = existingModel;
+    } else {
+      // First-ever seed across all hospitals: insert the real metrics from
+      // the last `python3 ml/train.py` run (see ml/models/metrics.json) --
+      // these were previously fabricated placeholder numbers. Update this
+      // block whenever the model is retrained.
+      const { data: insertedModel, error: modelError } = await supabase
+        .from("model_registry")
+        .insert({
+          model_version: "v2.0.0",
+          model_type: "LightGBM",
+          mae: 124.931,
+          rmse: 145.358,
+          r2_score: -0.01,
+          training_date: new Date().toISOString(),
+          is_active: true,
+          feature_importance: {
+            "Usage_Rolling_7": "highest per-prediction contribution (see ml/models/metrics.json)",
+            "Current_Stock": "second highest",
+            "Max_Capacity": "notable negative contribution",
+          },
+          hyperparameters: {
+            "note": "RandomizedSearchCV-selected, see ml/models/feature_schema.json for the full trained schema",
+          },
+          dataset_summary: {
+            "total_samples": 495,
+            "train_samples": 396,
+            "test_samples": 99,
+            "source": "ml/data/raw/inventory_data.csv (real dataset, not the notebook's synthetic generator)"
+          }
+        })
+        .select()
+        .single();
+
+      if (modelError) {
+        console.error("Error inserting model:", modelError);
+        throw modelError;
+      }
+      modelData = insertedModel;
     }
 
-    console.log("Inserted model registry entry");
+    console.log("Using model registry entry", modelData.model_version);
 
     // Create predictions for each item
     if (insertedItems && modelData) {
@@ -198,6 +219,7 @@ serve(async (req) => {
 
         return {
           item_id: item.id,
+          hospital_id: hospitalId,
           model_version_id: modelData.id,
           predicted_demand: estimatedDemand,
           // Bootstrap-only estimate (simple formula, not the trained model) so
@@ -242,6 +264,7 @@ serve(async (req) => {
 
         return {
           item_id: item.id,
+          hospital_id: hospitalId,
           estimated_demand: estimatedDemand,
           inventory_shortfall: inventoryShortfall,
           replenishment_needs: replenishmentNeeds
@@ -260,9 +283,32 @@ serve(async (req) => {
       console.log(`Inserted ${dashboardPredictions.length} dashboard predictions`);
     }
 
+    // alert_configurations is hospital-scoped, so unlike model_registry
+    // every hospital needs its own defaults -- seed them here rather than
+    // relying on the original (pre-multi-tenancy) migration's one-time
+    // global insert, which only ever covered the default hospital.
+    const { count: configCount } = await supabase
+      .from("alert_configurations")
+      .select("id", { count: "exact", head: true })
+      .eq("hospital_id", hospitalId);
+
+    if (!configCount || configCount === 0) {
+      const { error: configError } = await supabase.from("alert_configurations").insert([
+        { hospital_id: hospitalId, alert_type: "low_stock", threshold_value: 20, threshold_type: "percentage", notification_channels: ["in_app", "email"] },
+        { hospital_id: hospitalId, alert_type: "critical_stock", threshold_value: 10, threshold_type: "percentage", notification_channels: ["in_app", "email"] },
+        { hospital_id: hospitalId, alert_type: "expiry_warning", threshold_value: 30, threshold_type: "absolute", notification_channels: ["in_app", "email"] },
+        { hospital_id: hospitalId, alert_type: "data_drift", threshold_value: 0.15, threshold_type: "absolute", notification_channels: ["in_app", "email"] },
+        { hospital_id: hospitalId, alert_type: "prediction_error", threshold_value: 0.20, threshold_type: "percentage", notification_channels: ["in_app"] },
+      ]);
+      if (configError) {
+        console.error("Error inserting alert configurations:", configError);
+        throw configError;
+      }
+    }
+
     // Insert sample alerts
     const lowStockItems = insertedItems?.filter(item => item.current_stock < item.min_required) || [];
-    
+
     if (lowStockItems.length > 0) {
       const alerts = lowStockItems.map((item) => ({
         alert_type: "low_stock",
@@ -270,6 +316,7 @@ serve(async (req) => {
         title: `Low Stock Alert: ${item.item_name}`,
         message: `${item.item_name} stock (${item.current_stock}) is below minimum required (${item.min_required})`,
         item_id: item.id,
+        hospital_id: hospitalId,
         metadata: {
           current_stock: item.current_stock,
           min_required: item.min_required,

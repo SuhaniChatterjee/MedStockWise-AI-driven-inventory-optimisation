@@ -20,7 +20,11 @@ export interface AlertForEmail {
  * a broken email send should never fail the prediction/seed request that
  * triggered it.
  */
-export async function sendAlertEmails(supabase: SupabaseClient, alerts: AlertForEmail[]): Promise<void> {
+export async function sendAlertEmails(
+  supabase: SupabaseClient,
+  hospitalId: string,
+  alerts: AlertForEmail[]
+): Promise<void> {
   const notifiable = alerts.filter((a) => a.severity === "warning" || a.severity === "critical");
   if (notifiable.length === 0) return;
 
@@ -33,6 +37,7 @@ export async function sendAlertEmails(supabase: SupabaseClient, alerts: AlertFor
     const { data: configs } = await supabase
       .from("alert_configurations")
       .select("alert_type, is_enabled, notification_channels, recipient_roles")
+      .eq("hospital_id", hospitalId)
       .in("alert_type", [...new Set(notifiable.map((a) => a.alert_type))]);
 
     const emailable = notifiable.filter((a) => {
@@ -53,9 +58,13 @@ export async function sendAlertEmails(supabase: SupabaseClient, alerts: AlertFor
     const userIds = [...new Set((roleRows ?? []).map((r) => r.user_id))];
     if (userIds.length === 0) return;
 
+    // Scoped to this hospital -- user_roles has no hospital concept of its
+    // own (a user's hospital lives on profiles), so without this filter an
+    // alert from one hospital would email admins at every other hospital.
     const { data: recipients } = await supabase
       .from("profiles")
       .select("email, full_name")
+      .eq("hospital_id", hospitalId)
       .in("id", userIds);
 
     if (!recipients || recipients.length === 0) return;

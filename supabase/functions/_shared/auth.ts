@@ -54,3 +54,23 @@ export function createServiceRoleClient(): SupabaseClient {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
   );
 }
+
+/**
+ * These functions use the service-role key, which bypasses RLS entirely --
+ * so unlike the frontend (where Postgres enforces hospital_id scoping via
+ * `current_hospital_id()`), the function itself must fetch the caller's
+ * hospital and explicitly filter/stamp every query and insert with it.
+ */
+export async function getHospitalId(supabase: SupabaseClient, userId: string): Promise<string> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("hospital_id")
+    .eq("id", userId)
+    .single();
+
+  if (error || !data?.hospital_id) {
+    throw new Error("Could not resolve caller's hospital");
+  }
+
+  return data.hospital_id;
+}

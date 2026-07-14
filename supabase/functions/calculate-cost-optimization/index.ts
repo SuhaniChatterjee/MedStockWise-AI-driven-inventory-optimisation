@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { z } from "https://esm.sh/zod@3.23.8";
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
-import { createServiceRoleClient, requireUser, userHasAnyRole } from "../_shared/auth.ts";
+import { createServiceRoleClient, getHospitalId, requireUser, userHasAnyRole } from "../_shared/auth.ts";
 import { parseOrError, uuidSchema } from "../_shared/validation.ts";
 
 const eoqInputSchema = z.object({
@@ -57,6 +57,7 @@ serve(async (req) => {
   try {
     const supabase = createServiceRoleClient();
     const user = await requireUser(supabase, req);
+    const hospitalId = await getHospitalId(supabase, user.id);
 
     const authorized = await userHasAnyRole(supabase, user.id, ["admin", "inventory_manager"]);
     if (!authorized) {
@@ -69,8 +70,9 @@ serve(async (req) => {
     }
     const { item_id, run_all } = parsed.data;
 
-    // Get inventory items
-    let query = supabase.from('inventory_items').select('*');
+    // Get inventory items -- scoped to the caller's hospital (service-role
+    // key bypasses RLS, so this filter is the actual boundary here).
+    let query = supabase.from('inventory_items').select('*').eq('hospital_id', hospitalId);
     if (!run_all && item_id) {
       query = query.eq('id', item_id);
     }
@@ -121,6 +123,7 @@ serve(async (req) => {
         .from('cost_optimization')
         .insert({
           item_id: item.id,
+          hospital_id: hospitalId,
           eoq: Math.ceil(eoq),
           reorder_point: Math.ceil(reorderPoint),
           safety_stock: Math.ceil(safetyStock),
