@@ -17,6 +17,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Plus, Search, ChevronLeft, ChevronRight, Pencil, Trash2, Download } from "lucide-react";
 import { exportToCsv } from "@/lib/csv-export";
+import { ImportInventoryDialog } from "@/components/inventory/ImportInventoryDialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
@@ -431,6 +432,8 @@ export default function Inventory() {
           </p>
         </div>
         {isManager && (
+          <div className="flex items-center gap-2">
+            <ImportInventoryDialog />
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
             <DialogTrigger asChild>
               <Button size="lg" className="gap-2 shadow-lg">
@@ -458,6 +461,7 @@ export default function Inventory() {
               </form>
             </DialogContent>
           </Dialog>
+          </div>
         )}
       </div>
 
