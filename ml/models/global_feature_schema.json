@@ -1,0 +1,48 @@
+{
+  "model_type": "LightGBM",
+  "feature_columns": [
+    "month",
+    "dayofweek",
+    "weekofyear",
+    "is_weekend",
+    "lag_1",
+    "lag_7",
+    "lag_14",
+    "roll_7",
+    "cat_allergy",
+    "cat_analgesic",
+    "cat_anti_inflammatory",
+    "cat_respiratory_airway",
+    "cat_sedative",
+    "temp_mean",
+    "temp_min",
+    "precip",
+    "temp_roll7"
+  ],
+  "demand_categories": [
+    "allergy",
+    "analgesic",
+    "anti_inflammatory",
+    "respiratory_airway",
+    "sedative"
+  ],
+  "atc_to_category": {
+    "M01AB": "anti_inflammatory",
+    "M01AE": "anti_inflammatory",
+    "N02BA": "analgesic",
+    "N02BE": "analgesic",
+    "N05B": "sedative",
+    "N05C": "sedative",
+    "R03": "respiratory_airway",
+    "R06": "allergy"
+  },
+  "weather_columns": [
+    "temp_mean",
+    "temp_min",
+    "precip",
+    "temp_roll7"
+  ],
+  "target": "daily_demand",
+  "trained_on": "ml/data/raw/pharma_salesdaily.csv + weather_temperate.csv",
+  "notes": "No location/hospital identity in features -> zero-shot across hospitals & regions."
+}
