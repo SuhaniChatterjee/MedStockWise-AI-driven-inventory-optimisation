@@ -59,6 +59,7 @@ interface InventoryItem {
   restock_lead_time: number;
   vendor_name: string | null;
   demand_category: string;
+  expiry_date: string | null;
 }
 
 type ItemFormData = {
@@ -72,6 +73,7 @@ type ItemFormData = {
   restock_lead_time: number;
   vendor_name: string;
   demand_category: string;
+  expiry_date: string;
 };
 
 const PAGE_SIZE = 10;
@@ -98,6 +100,7 @@ const EMPTY_FORM: ItemFormData = {
   restock_lead_time: 0,
   vendor_name: "",
   demand_category: "general",
+  expiry_date: "",
 };
 
 function ItemFormFields({
@@ -220,6 +223,15 @@ function ItemFormFields({
           </SelectContent>
         </Select>
       </div>
+      <div className="space-y-2">
+        <Label htmlFor="expiry_date">Expiry Date (optional)</Label>
+        <Input
+          id="expiry_date"
+          type="date"
+          value={data.expiry_date}
+          onChange={(e) => onChange({ ...data, expiry_date: e.target.value })}
+        />
+      </div>
     </div>
   );
 }
@@ -301,6 +313,7 @@ export default function Inventory() {
           restock_lead_time: item.restock_lead_time,
           vendor_name: item.vendor_name ?? "",
           demand_category: item.demand_category,
+          expiry_date: item.expiry_date ?? "",
         }))
       );
     } catch (err) {
@@ -314,11 +327,18 @@ export default function Inventory() {
     }
   };
 
+  // The DB expiry_date column is a nullable date; an empty form string must
+  // become null (an empty string isn't a valid date value).
+  const toDbPayload = (form: ItemFormData) => ({
+    ...form,
+    expiry_date: form.expiry_date || null,
+  });
+
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     setAdding(true);
 
-    const { error } = await supabase.from("inventory_items").insert([addForm]);
+    const { error } = await supabase.from("inventory_items").insert([toDbPayload(addForm)]);
 
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -344,6 +364,7 @@ export default function Inventory() {
       restock_lead_time: item.restock_lead_time,
       vendor_name: item.vendor_name ?? "",
       demand_category: item.demand_category ?? "general",
+      expiry_date: item.expiry_date ?? "",
     });
   };
 
@@ -354,7 +375,7 @@ export default function Inventory() {
 
     const { error } = await supabase
       .from("inventory_items")
-      .update(editForm)
+      .update(toDbPayload(editForm))
       .eq("id", editingItem.id);
 
     if (error) {

@@ -182,6 +182,7 @@ export type Database = {
           created_at: string
           current_stock: number
           demand_category: string
+          expiry_date: string | null
           hospital_id: string
           id: string
           item_name: string
@@ -198,6 +199,7 @@ export type Database = {
           created_at?: string
           current_stock: number
           demand_category?: string
+          expiry_date?: string | null
           hospital_id?: string
           id?: string
           item_name: string
@@ -214,6 +216,7 @@ export type Database = {
           created_at?: string
           current_stock?: number
           demand_category?: string
+          expiry_date?: string | null
           hospital_id?: string
           id?: string
           item_name?: string

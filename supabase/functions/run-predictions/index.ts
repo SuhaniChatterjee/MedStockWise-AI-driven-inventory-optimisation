@@ -4,6 +4,7 @@ import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { createServiceRoleClient, getHospitalId, requireUser, userHasAnyRole } from "../_shared/auth.ts";
 import { itemLikeSchema, parseOrError, uuidSchema } from "../_shared/validation.ts";
 import { sendAlertEmails } from "../_shared/email.ts";
+import { runMonitoring } from "../_shared/monitoring.ts";
 
 const predictionInputSchema = z.object({
   item_id: uuidSchema.optional(),
@@ -274,6 +275,11 @@ serve(async (req) => {
         }
       }
     }
+
+    // Monitoring pass: expiry / demand-drift / prediction-error alerts, run
+    // over the same items right after their predictions were recorded.
+    const monitorAlerts = await runMonitoring(supabase, hospitalId, items);
+    alerts.push(...monitorAlerts);
 
     // Batch insert alerts
     if (alerts.length > 0) {

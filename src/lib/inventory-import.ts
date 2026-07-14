@@ -11,6 +11,7 @@ export interface ImportRow {
   restock_lead_time: number;
   vendor_name: string | null;
   demand_category: string;
+  expiry_date: string | null;
 }
 
 export interface RowError {
@@ -59,14 +60,14 @@ function norm(key: string): string {
 }
 
 export const TEMPLATE_HEADERS =
-  "item_name,item_type,current_stock,min_required,max_capacity,unit_cost,avg_usage_per_day,restock_lead_time,vendor_name,demand_category";
+  "item_name,item_type,current_stock,min_required,max_capacity,unit_cost,avg_usage_per_day,restock_lead_time,vendor_name,demand_category,expiry_date";
 
 export function inventoryCsvTemplate(): string {
   return (
     TEMPLATE_HEADERS +
     "\n" +
-    "Surgical Mask,Consumable,2000,400,5000,0.5,300,7,Acme Medical,respiratory_airway\n" +
-    "Ventilator,Equipment,20,5,40,25000,1,30,MedEquip Co,general\n"
+    "Surgical Mask,Consumable,2000,400,5000,0.5,300,7,Acme Medical,respiratory_airway,2027-06-30\n" +
+    "Ventilator,Equipment,20,5,40,25000,1,30,MedEquip Co,general,\n"
   );
 }
 
@@ -135,6 +136,17 @@ export function parseInventoryCsv(text: string): ImportResult {
       return;
     }
 
+    // Optional expiry_date: accept blank or a valid YYYY-MM-DD; reject garbage.
+    let expiry_date: string | null = null;
+    const rawExpiry = keyMap.has("expiry_date") ? get(record, "expiry_date") : "";
+    if (rawExpiry) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(rawExpiry) || Number.isNaN(Date.parse(rawExpiry))) {
+        errors.push({ line, message: `expiry_date "${rawExpiry}" must be YYYY-MM-DD` });
+        return;
+      }
+      expiry_date = rawExpiry;
+    }
+
     const vendor = keyMap.has("vendor_name") ? get(record, "vendor_name") : "";
     rows.push({
       item_name,
@@ -147,6 +159,7 @@ export function parseInventoryCsv(text: string): ImportResult {
       restock_lead_time: nums.restock_lead_time,
       vendor_name: vendor || null,
       demand_category,
+      expiry_date,
     });
   });
 
