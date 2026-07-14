@@ -67,10 +67,33 @@ Two of these deserve honesty:
 ### Reproduce
 
 ```bash
-python3 ml/fetch_weather.py     # caches weather CSVs (no-op if present)
-python3 ml/train_global.py      # -> ml/models/global_demand_model.txt + schema + metrics
-python3 -m pytest ml/           # leakage / determinism / mapping / no-identity checks
+python3 ml/fetch_weather.py            # caches weather CSVs (no-op if present)
+python3 ml/train_global.py            # -> global_demand_model.txt + schema + metrics
+python3 ml/export_seasonal_curves.py  # -> seasonal_multipliers.json (what serving uses)
+python3 -m pytest ml/                 # leakage / determinism / mapping / no-identity checks
 ```
+
+### Continuous learning without per-hospital retraining
+
+Two distinct things adapt, neither of which retrains the model when a hospital
+onboards:
+
+1. **Zero-shot serving (no retraining, ever, per hospital).** The model is
+   global; a new hospital's item is just a new feature vector. This is the
+   core "train once, works for everyone" property.
+2. **Closed-loop model refresh (retrains the *shared* model as data evolves).**
+   - *Signal:* in-app monitoring (`_shared/monitoring.ts`) raises `data_drift`
+     alerts when a hospital's real usage diverges from its captured baseline.
+   - *Actuator:* `.github/workflows/retrain.yml` regenerates the model +
+     seasonal curves, runs the tests, commits the refreshed artifacts, and
+     redeploys the prediction API. Trigger it manually when drift warrants, or
+     let the weekly schedule run it (standard "continual training" via CI).
+   - To close the loop automatically, add `RENDER_API_KEY` + `RENDER_SERVICE_ID`
+     as repo secrets so the workflow's redeploy step fires.
+
+   This is deliberately *not* true per-example online learning (River et al.):
+   for noisy tabular demand, scheduled/triggered batch retraining is more
+   robust and is what production MLOps actually does.
 
 ---
 

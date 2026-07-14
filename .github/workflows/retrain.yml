@@ -1,0 +1,73 @@
+name: Retrain demand model
+
+# The "continuous learning without per-hospital retraining" loop:
+#   1. In-app monitoring (_shared/monitoring.ts) raises data_drift alerts when a
+#      hospital's real usage diverges from its baseline -- the signal that the
+#      global model may be stale.
+#   2. This workflow is the actuator: it regenerates the model + seasonal curves
+#      from the (updated) data, commits the new artifacts, and redeploys the
+#      prediction API. Trigger it manually when drift alerts warrant it, or let
+#      the weekly schedule run it (continual training).
+#
+# Note: the model is GLOBAL and zero-shot, so this never retrains "per
+# hospital" -- a new hospital never triggers a retrain. Retraining only
+# refreshes the shared seasonal patterns as the underlying data evolves.
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: "0 3 * * 1" # 03:00 UTC every Monday
+
+permissions:
+  contents: write # to commit refreshed model artifacts
+
+jobs:
+  retrain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install -r ml/requirements.txt
+
+      - name: Fetch weather (no-op if cached in repo)
+        run: python3 ml/fetch_weather.py
+
+      - name: Retrain global model + regenerate seasonal curves
+        run: |
+          python3 ml/train_global.py
+          python3 ml/export_seasonal_curves.py
+
+      - name: Run ML tests
+        run: python3 -m pytest ml/ services/prediction-api/ -q
+
+      - name: Commit refreshed artifacts (if changed)
+        run: |
+          git config user.name "medstock-retrain-bot"
+          git config user.email "actions@github.com"
+          git add ml/models/
+          if git diff --cached --quiet; then
+            echo "No model changes to commit."
+          else
+            git commit -m "chore: refresh demand model artifacts [skip ci]"
+            git push
+          fi
+
+      - name: Trigger prediction API redeploy (if configured)
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+        run: |
+          if [ -n "$RENDER_API_KEY" ] && [ -n "$RENDER_SERVICE_ID" ]; then
+            curl -sS -X POST "https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys" \
+              -H "Authorization: Bearer $RENDER_API_KEY" \
+              -H "Content-Type: application/json" \
+              -d '{"clearCache":"do_not_clear"}'
+            echo "Requested Render redeploy."
+          else
+            echo "RENDER_API_KEY / RENDER_SERVICE_ID not set -- skipping redeploy."
+            echo "Add them as repo secrets to close the loop automatically."
+          fi
