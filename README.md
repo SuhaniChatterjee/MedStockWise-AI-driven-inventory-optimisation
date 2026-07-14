@@ -7,6 +7,7 @@ AI-assisted hospital inventory management: demand forecasting, cost optimization
 MedStock Wise is a React/Supabase web app that tracks hospital inventory (equipment and consumables), predicts near-term demand for each item, flags items at risk of running out, and recommends order quantities. Predictions are served by a real trained LightGBM model via a separate FastAPI microservice, not a hardcoded formula.
 
 **Full documentation:**
+- [docs/research-paper.md](docs/research-paper.md) — the updated research paper (also as a formatted `.docx` in `docs/`)
 - [docs/architecture.md](docs/architecture.md) — system design, data flow, why it's shaped this way
 - [docs/api.md](docs/api.md) — Supabase edge function request/response contracts
 - [docs/deployment.md](docs/deployment.md) — how to actually deploy this (Supabase, prediction API, frontend)
