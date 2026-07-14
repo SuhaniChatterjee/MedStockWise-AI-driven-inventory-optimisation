@@ -80,18 +80,34 @@ export function useAuth() {
     return { error: setSessionError };
   };
 
-  const signUp = async (email: string, password: string, fullName: string) => {
+  // Onboarding: a signup either creates a new hospital (becoming its admin)
+  // or joins an existing one by invite code (as a nurse). The choice is
+  // carried in signup metadata and resolved atomically server-side by the
+  // handle_new_user trigger -- see supabase/migrations/*_onboarding_flow.sql.
+  type OnboardingData =
+    | { mode: "create"; hospitalName: string; region: string }
+    | { mode: "join"; inviteCode: string };
+
+  const signUp = async (
+    email: string,
+    password: string,
+    fullName: string,
+    onboarding: OnboardingData
+  ) => {
     const redirectUrl = `${window.location.origin}/`;
-    
+
+    const data: Record<string, string> = { full_name: fullName };
+    if (onboarding.mode === "create") {
+      data.hospital_name = onboarding.hospitalName;
+      data.region = onboarding.region;
+    } else {
+      data.invite_code = onboarding.inviteCode;
+    }
+
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        emailRedirectTo: redirectUrl,
-        data: {
-          full_name: fullName,
-        },
-      },
+      options: { emailRedirectTo: redirectUrl, data },
     });
     return { error };
   };

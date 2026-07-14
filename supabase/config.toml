@@ -80,3 +80,8 @@ verify_jwt = true
 # Called pre-login; the anon key still satisfies verify_jwt (it's a valid,
 # signed JWT), so this does not weaken the gateway-level check.
 verify_jwt = true
+
+[functions.validate-invite-code]
+# Called pre-signup to preview a hospital name from an invite code; the
+# anon key satisfies verify_jwt. Returns only the hospital name, never ids.
+verify_jwt = true
